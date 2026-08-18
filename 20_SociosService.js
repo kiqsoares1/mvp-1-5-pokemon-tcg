@@ -223,9 +223,9 @@ var SociosService = (function () {
     var registroSocio = _buscarSocio(idSocio);
     if (!registroSocio) return _erroAporte('Sócio não encontrado: ' + idSocio, idRequisicao);
 
-    var jaProcessado = SheetService.buscarPorCampo(ABA_APORTES, 'ID Requisição', idRequisicao);
     // Tolerante: se a coluna "ID Requisição" não existir em Aportes_Socios,
     // buscarPorCampo lança erro — protege com try/catch.
+    var jaProcessado = [];
     try {
       if (SheetService.getCabecalhos(ABA_APORTES).indexOf('ID Requisição') !== -1) {
         jaProcessado = SheetService.buscarPorCampo(ABA_APORTES, 'ID Requisição', idRequisicao);
