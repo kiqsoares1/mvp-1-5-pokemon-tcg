@@ -24,16 +24,22 @@ detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
   `REGRAS_CRITICAS.md` do repositório anterior (`gs_codex`).
 - Descoberto e documentado: este sandbox de nuvem não consegue fazer `git push` nem
   `clasp login` (rede restrita) — esses passos precisam rodar na máquina do usuário.
+- Confirmado que o `git init` + commits + push já tinham sido feitos na máquina do Kaique:
+  `mvp-1-5-pokemon-tcg` está com `main` sincronizado com `origin/main`, working tree limpo,
+  2 commits ("Estrutura inicial..." e "Corrige estrutura: move docs/ e README.md para a
+  raiz"). Item de consolidação do repositório fechado.
+- Decisão do Kaique sobre o bundle do `gs_codex` (histórico antigo, 28 commits terminando
+  em "Remove CS Skins do escopo e adiciona módulo societário v1.6.0"): **não importar**.
+  Confirmado por inspeção que o código atual já está limpo de CS Skins (só restam menções
+  em `00_Config.js` e `REGRAS_DE_NEGOCIO.md` documentando que foi removido do escopo e não
+  deve ser reintroduzido). O bundle não tem nada de valor que já não esteja resumido em
+  `CONTEXTO.md`/`REGRAS_DE_NEGOCIO.md`. Bundle mantido apenas no Downloads do Kaique, sem
+  branch de arquivo no repositório.
 
 **Pendente:**
-- Rodar `git init` + primeiro commit + push na pasta local do Kaique (código clonado via
-  clasp + esta pasta `docs/`), consolidando tudo em `mvp-1-5-pokemon-tcg`.
 - Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — ainda não executados nesta
   rodada; a sessão foi interrompida para reestruturar o projeto em repositório/documentos
   antes de prosseguir.
-- Repositório `gs_codex` (anterior) tinha 3 commits nunca enviados ao GitHub; foram
-  empacotados num bundle Git e entregues ao Kaique separadamente, para importar se quiser
-  preservar aquele histórico.
 - `2. Instalar / Inicializar Sistema` estava prestes a ser rodado quando a sessão mudou de
   foco para a reorganização do repositório — falta confirmar que roda limpo depois da
   correção do `Natureza Despesa`.
