@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?!= include('BaseStyles'); ?>
+</head>
+<body>
+<div class="portal-shell">
+<aside class="sidebar">
+<div class="brand">
+<div class="brand-mark">MVP</div>
+<div>
+<h1>MVP 1.5</h1>
+<p><?= appConfig.ambiente ?> · <?= appConfig.versao ?></p>
+</div>
+</div>
+<nav class="nav" aria-label="Módulos">
+<button class="nav-item active" data-section="dashboard">Dashboard</button>
+<button class="nav-item" data-section="produtos">Produtos</button>
+<button class="nav-item" data-section="carteira">Carteira</button>
+<button class="nav-item" data-section="compra">Compras</button>
+<button class="nav-item" data-section="venda">Vendas</button>
+<button class="nav-item" data-section="abertura">Abertura</button>
+<button class="nav-item" data-section="estoque">Lotes</button>
+<button class="nav-item" data-section="precos">Preços</button>
+<button class="nav-item" data-section="socios">Sócios</button>
+<button class="nav-item" data-section="financeiro">Despesas</button>
+<button class="nav-item" data-section="logs">Sistema</button>
+</nav>
+</aside>
+
+<main class="main">
+<header class="topbar">
+<div>
+<p class="eyebrow"><?= appConfig.sistema ?></p>
+<h2 id="sectionTitle">Dashboard</h2>
+</div>
+<div class="top-actions">
+<span id="connectionStatus" class="status-pill">Conectando</span>
+<button class="btn secondary" id="refreshBtn" type="button">Atualizar</button>
+</div>
+</header>
+
+<div id="messageArea" class="message-area" aria-live="polite"></div>
+
+<!-- ============================================================
+DASHBOARD — visão geral do negócio: capital, sócios, estoque
+============================================================ -->
+<section id="dashboard" class="section active">
+<div class="section-head">
+<h3>Visão Geral do Negócio</h3>
+<div class="quick-actions">
+<button class="btn" data-go="socios">Sócios</button>
+<button class="btn" data-go="estoque">Estoque</button>
+<button class="btn secondary" data-go="financeiro">Despesas</button>
+</div>
+</div>
+<div id="dashboardCards" class="cards-grid"></div>
+
+<h3 class="subsection-title">Faturamento anual × teto MEI</h3>
+<div id="dashboardMeiCard" class="cards-grid compact"></div>
+
+<h3 class="subsection-title">Sócios</h3>
+<div id="dashboardSociosTable" class="table-wrap"></div>
+
+<h3 class="subsection-title">Estoque por produto</h3>
+<div id="dashboardEstoqueTable" class="table-wrap"></div>
+</section>
+
+<!-- ============================================================
+PRODUTOS — cadastro e metadados de mercado
+============================================================ -->
+<section id="produtos" class="section">
+<div class="section-head">
+<h3>Produtos</h3>
+<button class="btn secondary" id="loadProdutosBtn">Recarregar</button>
+</div>
+<form id="produtoForm" class="form-grid">
+<label>Nome Produto<input name="nomeProduto" required></label>
+<label>Tipo / Modelo<input name="tipoModelo" list="dlTipoModelo"></label>
+<label>Coleção / Jogo<input name="colecaoJogo" list="dlColecao"></label>
+<label>Estado / Condição<input name="estadoCondicao" list="dlCondicao"></label>
+<label>Unidade de Controle<input name="unidadeControle" value="Unidade"></label>
+<label>Produto Fracionável?<select name="fracionavel"><option>Não</option><option>Sim</option></select></label>
+<label>Qtd Gerada Padrão<input name="qtdGeradaPadrao" type="number" step="1"></label>
+<label>Produto Gerado Padrão<input name="produtoGeradoPadrao" placeholder="ID Produto gerado"></label>
+<label>País / Região<input name="paisRegiao" list="dlPaisRegiao" placeholder="Brasil, Japão, EUA..."></label>
+<label>Idioma<input name="idioma" list="dlIdioma" placeholder="Português, Japonês..."></label>
+<label>Mercado Referência<input name="mercadoReferencia" list="dlMercado" placeholder="Liga Pokémon..."></label>
+<label>Fonte Preço Preferencial<input name="fontePrecoPreferencial" list="dlFontePreco" placeholder="Manual"></label>
+<label class="wide">Observações<input name="observacoes"></label>
+<div class="wide actions"><button class="btn" type="submit">Cadastrar Produto</button></div>
+</form>
+<form id="produtoMetaForm" class="form-grid">
+<label class="wide">Atualizar metadados de mercado de um produto existente<select name="idProduto" id="produtoMetaSelect"></select></label>
+<label>País / Região<input name="paisRegiao" list="dlPaisRegiao"></label>
+<label>Idioma<input name="idioma" list="dlIdioma"></label>
+<label>Mercado Referência<input name="mercadoReferencia" list="dlMercado"></label>
+<label>Fonte Preço Preferencial<input name="fontePrecoPreferencial" list="dlFontePreco"></label>
+<div class="wide actions"><button class="btn secondary" type="submit">Atualizar Metadados</button></div>
+</form>
+<div id="produtosTable" class="table-wrap"></div>
+<pre id="produtoResult" class="result-box"></pre>
+</section>
+
+<!-- ============================================================
+CARTEIRA — valorização do estoque por produto (mercado)
+============================================================ -->
+<section id="carteira" class="section">
+<div class="section-head">
+<h3>Carteira / Valorização de Mercado</h3>
+<div class="filters">
+<button class="btn secondary" id="loadCarteiraBtn">Recarregar</button>
+<button class="btn" id="updateCarteiraBtn">Atualizar Preços</button>
+</div>
+</div>
+<p class="hint">Visão por produto: custo histórico vs. valor de mercado atual. Para o detalhe por lote (FIFO), veja a aba Lotes.</p>
+<div id="carteiraCards" class="cards-grid compact"></div>
+<div id="carteiraTable" class="table-wrap"></div>
+</section>
+
+<!-- ============================================================
+COMPRA
+============================================================ -->
+<section id="compra" class="section">
+<div class="section-head"><h3>Nova Compra</h3></div>
+<form id="compraForm" class="form-grid">
+<label>Data compra<input name="dataCompra" placeholder="dd/mm/aaaa"></label>
+<label>Fornecedor<input name="fornecedor"></label>
+<label>Frete<input name="frete" type="number" step="0.01" value="0"></label>
+<label>Taxas<input name="taxas" type="number" step="0.01" value="0"></label>
+<label>Desconto<input name="desconto" type="number" step="0.01" value="0"></label>
+<label class="wide">Produto<select name="idProduto" data-products="compra"></select></label>
+<div id="compraProdutoMeta" class="wide cards-grid compact"></div>
+<label>Quantidade<input name="quantidade" type="number" step="1" value="1"></label>
+<label>Valor unitário bruto<input name="valorUnitarioBruto" type="number" step="0.01"></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Salvar Compra</button></div>
+</form>
+<pre id="compraResult" class="result-box"></pre>
+</section>
+
+<!-- ============================================================
+VENDA
+============================================================ -->
+<section id="venda" class="section">
+<div class="section-head"><h3>Nova Venda</h3></div>
+<form id="vendaForm" class="form-grid">
+<label>Data venda<input name="dataVenda" placeholder="dd/mm/aaaa"></label>
+<label>Cliente<input name="cliente"></label>
+<label class="wide">Produto<select name="idProduto" data-products="venda"></select></label>
+<label>Quantidade<input name="quantidade" type="number" step="1" value="1"></label>
+<label>Valor unitário venda<input name="valorUnitarioVenda" type="number" step="0.01"></label>
+<label>Taxa venda<input name="taxaVenda" type="number" step="0.01" value="0"></label>
+<label>Frete venda<input name="freteVenda" type="number" step="0.01" value="0"></label>
+<label>Desconto venda<input name="descontoVenda" type="number" step="0.01" value="0"></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Salvar Venda</button></div>
+</form>
+<p class="hint">O lucro de cada venda é automaticamente dividido entre os sócios ativos, proporcional à participação vigente na data da venda.</p>
+<pre id="vendaResult" class="result-box"></pre>
+</section>
+
+<!-- ============================================================
+ABERTURA POKÉMON
+============================================================ -->
+<section id="abertura" class="section">
+<div class="section-head"><h3>Abertura Pokémon</h3></div>
+<form id="aberturaForm" class="form-grid">
+<label class="wide">Box / Coleção<select name="idProduto" id="aberturaProdutoSelect"></select></label>
+<label>Quantidade a abrir<input name="qtdAbrir" type="number" step="1" value="1"></label>
+<label>Qtd gerada por unidade<input name="qtdGeradaPorUnidade" type="number" step="1"></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Registrar Abertura</button></div>
+</form>
+<p class="hint">O lote disponível mais antigo é selecionado automaticamente (FIFO) — não é preciso digitar o ID do lote.</p>
+<pre id="aberturaResult" class="result-box"></pre>
+</section>
+
+<!-- ============================================================
+LOTES — detalhe do estoque por lote (auditoria FIFO)
+============================================================ -->
+<section id="estoque" class="section">
+<div class="section-head"><h3>Lotes de Estoque</h3><button class="btn secondary" id="loadEstoqueBtn">Consultar</button></div>
+<p class="hint">Detalhe por lote (ordem FIFO). Para a visão consolidada por produto, veja a aba Carteira.</p>
+<div id="estoqueTable" class="table-wrap"></div>
+</section>
+
+<!-- ============================================================
+PREÇOS
+============================================================ -->
+<section id="precos" class="section">
+<div class="section-head"><h3>Busca / Atualização de Preços</h3></div>
+<form id="precoForm" class="form-grid">
+<label class="wide">Produto<select name="idProduto" data-products="precos"></select></label>
+<label>Preço manual<input name="precoUnitario" type="number" step="0.01"></label>
+<label>Fonte<input name="fonte" value="Manual" list="dlFontePreco"></label>
+<label class="wide">Link referência<input name="linkReferencia"></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn secondary" id="buscarPrecoBtn" type="button">Buscar Preço</button><button class="btn" type="submit">Registrar Manual</button></div>
+</form>
+<pre id="precoResult" class="result-box"></pre>
+</section>
+
+<!-- ============================================================
+SÓCIOS — cadastro, aportes e retiradas (tudo vinculado a sócio)
+============================================================ -->
+<section id="socios" class="section">
+<div class="section-head"><h3>Sócios</h3><button class="btn secondary" id="loadSociosBtn">Recarregar</button></div>
+<div id="sociosCards" class="cards-grid compact"></div>
+<div id="sociosTable" class="table-wrap"></div>
+<p class="hint">Participação é recalculada automaticamente a cada novo aporte, com base no total aportado por cada sócio. Mudanças não afetam vendas já registradas.</p>
+
+<form id="socioForm" class="form-grid">
+<label>Nome<input name="nome" required></label>
+<label>Email<input name="email" type="email"></label>
+<div class="wide actions"><button class="btn secondary" type="submit">Cadastrar Novo Sócio</button></div>
+</form>
+<pre id="socioResult" class="result-box"></pre>
+
+<h3 class="subsection-title">Novo Aporte</h3>
+<form id="aporteForm" class="form-grid">
+<label>Sócio<select name="idSocio" id="aporteSocioSelect" required></select></label>
+<label>Data<input name="data" placeholder="dd/mm/aaaa"></label>
+<label>Valor<input name="valor" type="number" step="0.01" required></label>
+<label>Forma de Pagamento<select name="formaPagamento"><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Despesa Convertida</option><option>Outro</option></select></label>
+<label class="wide">Origem<input name="origem" placeholder="Ex: despesa paga do próprio bolso"></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Registrar Aporte</button></div>
+</form>
+<p class="hint">Todo dinheiro que entra de um sócio é aporte de capital — não existe empréstimo de sócio. Uma despesa paga do próprio bolso deve ser lançada aqui como aporte, com a origem explicada.</p>
+<pre id="aporteResult" class="result-box"></pre>
+<div id="aportesTable" class="table-wrap"></div>
+
+<h3 class="subsection-title">Nova Retirada</h3>
+<form id="retiradaForm" class="form-grid">
+<label>Sócio<select name="idSocio" id="retiradaSocioSelect" required></select></label>
+<label>Data<input name="data" placeholder="dd/mm/aaaa"></label>
+<label>Valor Solicitado<input name="valorSolicitado" type="number" step="0.01" required></label>
+<label>Forma de Pagamento<select name="formaPagamento"><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Solicitar Retirada</button></div>
+</form>
+<p class="hint">O valor aprovado é sempre o menor entre o lucro disponível do sócio e a cota dele sobre o caixa livre da empresa. Se o valor solicitado exceder o limite, a retirada é aprovada parcialmente ou bloqueada.</p>
+<pre id="retiradaResult" class="result-box"></pre>
+<div id="retiradasTable" class="table-wrap"></div>
+</section>
+
+<!-- ============================================================
+DESPESAS / FINANCEIRO — resumo gerencial + despesas fixas/variáveis
+============================================================ -->
+<section id="financeiro" class="section">
+<div class="section-head"><h3>Financeiro — Despesas</h3><button class="btn secondary" id="loadFinanceiroBtn">Recarregar</button></div>
+<p class="hint">Aporte e retirada de capital ficam na aba Sócios (sempre vinculados a um sócio). Aqui ficam apenas as despesas gerais da empresa — fixas (aluguel, assinaturas, etc.) e variáveis (taxas de plataforma, frete, embalagem, etc.) — que reduzem o lucro líquido.</p>
+<div id="financeiroCards" class="cards-grid compact"></div>
+
+<form id="despesaForm" class="form-grid">
+<label>Data<input name="data" placeholder="dd/mm/aaaa"></label>
+<label>Categoria<select name="categoria">
+<option>Taxa Plataforma</option><option>Frete</option><option>Embalagem</option>
+<option>Operacional</option><option>Outro</option>
+</select></label>
+<label>Natureza<select name="natureza"><option>Variável</option><option>Fixa</option></select></label>
+<label>Valor<input name="valor" type="number" step="0.01" required></label>
+<label class="wide">Descrição<input name="descricao" required></label>
+<label class="wide">Observação<input name="observacao"></label>
+<div class="wide actions"><button class="btn" type="submit">Registrar Despesa</button></div>
+</form>
+<pre id="despesaResult" class="result-box"></pre>
+<div id="despesasTable" class="table-wrap"></div>
+</section>
+
+<!-- ============================================================
+SISTEMA — health check e logs
+============================================================ -->
+<section id="logs" class="section">
+<div class="section-head"><h3>Sistema — Health Check &amp; Logs</h3><div class="quick-actions"><button class="btn secondary" id="healthBtn">Health Check</button><button class="btn secondary" id="loadLogsBtn">Últimos Logs</button></div></div>
+<div id="healthCards" class="cards-grid compact"></div>
+<div id="logsTable" class="table-wrap"></div>
+</section>
+
+<footer class="footer">HML · Última atualização: <span id="lastUpdate">-</span></footer>
+</main>
+</div>
+
+<!-- Listas editáveis com sugestões — o usuário pode digitar um valor -->
+<!-- novo, não precisa se prender às opções abaixo. -->
+<datalist id="dlPaisRegiao">
+<option value="Brasil"><option value="Japão"><option value="EUA">
+<option value="China"><option value="Coreia do Sul"><option value="Europa">
+</datalist>
+<datalist id="dlIdioma">
+<option value="Português"><option value="Inglês"><option value="Japonês">
+<option value="Chinês"><option value="Coreano">
+</datalist>
+<datalist id="dlTipoModelo">
+<option value="Booster Box"><option value="Booster Pack"><option value="ETB">
+<option value="Elite Trainer Box"><option value="Blister"><option value="Display">
+<option value="Carta Avulsa"><option value="Deck">
+</datalist>
+<datalist id="dlCondicao">
+<option value="Lacrado"><option value="Novo"><option value="Usado">
+<option value="Near Mint"><option value="Danificado">
+</datalist>
+<datalist id="dlColecao">
+<option value="Escarlate e Violeta"><option value="Espada e Escudo">
+<option value="Sol e Lua"><option value="XY"><option value="Herois Excelsos">
+</datalist>
+<datalist id="dlMercado">
+<option value="Liga Pokémon"><option value="TCGPlayer"><option value="Cardmarket">
+<option value="Marketplace"><option value="Manual">
+</datalist>
+<datalist id="dlFontePreco">
+<option value="LigaPokemon"><option value="Marketplace"><option value="Manual"><option value="Outro">
+</datalist>
+
+<?!= include('BaseScripts'); ?>
+</body>
+</html>

@@ -1,0 +1,334 @@
+<script>
+  (function () {
+  var NEGOCIO = 'Pokémon TCG'; // único negócio do sistema (v1.6.0 — CS Skins removido)
+  var state = { section: 'dashboard', products: [], produtosMercado: [], socios: [] };
+  var titles = {
+  dashboard: 'Dashboard', produtos: 'Produtos', carteira: 'Carteira / Mercado', compra: 'Nova Compra', venda: 'Nova Venda',
+  abertura: 'Abertura Pokémon', estoque: 'Lotes de Estoque', precos: 'Preços',
+  socios: 'Sócios', financeiro: 'Financeiro — Despesas', logs: 'Sistema'
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function money(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function pct(v) { return (Number(v || 0) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'; }
+  function todayBR() { return new Date().toLocaleDateString('pt-BR'); }
+  function uuid(prefix) { return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8).toUpperCase(); }
+  function setStatus(text, cls) { var el = $('connectionStatus'); el.textContent = text; el.className = 'status-pill ' + (cls || ''); }
+  function showMessage(text, type) { $('messageArea').innerHTML = text ? '<div class="alert ' + (type || '') + '">' + escapeHtml(text) + '</div>' : ''; }
+  function escapeHtml(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function(c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]); }); }
+
+  function callServer(fn, args) {
+  setStatus('Carregando', '');
+  return new Promise(function(resolve, reject) {
+  var runner = google.script.run.withSuccessHandler(function(res) {
+  setStatus('Conectado', 'ok');
+  $('lastUpdate').textContent = new Date().toLocaleString('pt-BR');
+  resolve(res || {});
+  }).withFailureHandler(function(err) { setStatus('Erro', 'err'); reject(err); });
+  runner[fn].apply(runner, args || []);
+  });
+  }
+
+  function card(label, value, cls) { return '<div class="card"><div class="label">' + escapeHtml(label) + '</div><div class="value ' + (cls || '') + '">' + escapeHtml(value) + '</div></div>'; }
+
+  // columns: [{label, key|value(fn), html, num}] — `num: true` alinha a coluna à direita
+  // (usado para valores monetários/quantidades, deixando a tabela mais legível).
+  function table(columns, rows) {
+  if (!rows || !rows.length) return '<div class="card"><div class="label">Resultado</div><div class="value">Sem dados</div></div>';
+  return '<table><thead><tr>' + columns.map(function(c) {
+  return '<th class="' + (c.num ? 'num' : '') + '">' + escapeHtml(c.label) + '</th>';
+  }).join('') + '</tr></thead><tbody>' + rows.map(function(r) {
+  return '<tr>' + columns.map(function(c) {
+  var val = typeof c.value === 'function' ? c.value(r) : r[c.key];
+  return '<td class="' + (c.num ? 'num' : '') + '">' + (c.html ? val : escapeHtml(val)) + '</td>';
+  }).join('') + '</tr>';
+  }).join('') + '</tbody></table>';
+  }
+
+  function go(section) {
+  state.section = section;
+  document.querySelectorAll('.section').forEach(function(el) { el.classList.toggle('active', el.id === section); });
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.toggle('active', el.dataset.section === section); });
+  $('sectionTitle').textContent = titles[section] || section;
+  showMessage('', '');
+  loadSection(section);
+  }
+
+  function loadSection(section) {
+  if (section === 'dashboard') loadDashboard();
+  if (section === 'produtos') loadProdutos();
+  if (section === 'carteira') loadCarteira();
+  if (section === 'estoque') loadEstoque();
+  if (section === 'financeiro') { loadFinanceiro(); loadDespesas(); }
+  if (section === 'socios') { loadSocios(); loadAportes(); loadRetiradas(); }
+  if (section === 'abertura') loadProdutosFracionaveis();
+  if (section === 'logs') loadLogs();
+  if (['compra', 'venda', 'precos'].indexOf(section) !== -1) loadProductsForForms();
+  }
+
+  function meiCardHtml(alerta) {
+  if (!alerta) return '';
+  var cls = alerta.percentualDoTeto >= 0.8 ? 'negative' : (alerta.percentualDoTeto >= 0.6 ? '' : 'positive');
+  return card(
+  'Faturamento ' + alerta.ano + ' (' + pct(alerta.percentualDoTeto) + ' do teto MEI)',
+  money(alerta.faturamentoAnual) + ' / ' + money(alerta.tetoMei),
+  cls
+  );
+  }
+
+  function loadDashboard() {
+  callServer('uiObterDashboardGeral').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  var c = res.carteira || {}, f = res.financeiro || {};
+  $('dashboardCards').innerHTML = [
+  card('Capital total dos sócios', money(res.capitalTotalSocios)),
+  card('Alocado em estoque (custo)', money(f.valorEstoquePeloCusto)),
+  card('Estoque a valor de mercado', money(c.valorMercadoTotal)),
+  card('Caixa livre (parado)', money(res.caixaLivre), Number(res.caixaLivre) >= 0 ? 'positive' : 'negative'),
+  card('Despesas fixas', money(f.despesasFixas)),
+  card('Despesas variáveis', money(f.despesasVariaveis)),
+  card('Lucro líquido após despesas', money(f.lucroLiquidoAposDespesas), Number(f.lucroLiquidoAposDespesas) >= 0 ? 'positive' : 'negative'),
+  card('Produtos cadastrados / com estoque', (res.totalProdutosCadastrados || 0) + ' / ' + (c.produtosComEstoque || 0))
+  ].join('');
+
+  $('dashboardMeiCard').innerHTML = meiCardHtml(res.alertaMei);
+
+  $('dashboardSociosTable').innerHTML = table([
+  { label: 'Sócio', key: 'nome' },
+  { label: 'Participação', value: function(r) { return pct(r.participacaoAtual); }, num: true },
+  { label: 'Total aportado', value: function(r) { return money(r.totalAportado); }, num: true },
+  { label: 'Lucro atribuído', value: function(r) { return money(r.lucroAtribuidoTotal); }, num: true },
+  { label: 'Lucro retirado', value: function(r) { return money(r.lucroRetiradoTotal); }, num: true },
+  { label: 'Lucro disponível', value: function(r) { return money(r.lucroDisponivel); }, num: true }
+  ], res.socios || []);
+
+  $('dashboardEstoqueTable').innerHTML = table([
+  { label: 'Produto', key: 'produto' },
+  { label: 'Qtd. disponível', key: 'quantidadeDisponivel', num: true },
+  { label: 'Custo total', value: function(r) { return money(r.custoTotalHistorico); }, num: true },
+  { label: 'Valor de mercado', value: function(r) { return money(r.valorMercadoTotal); }, num: true },
+  { label: 'Status preço', key: 'statusPreco' }
+  ], res.produtosEstoque || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadProdutos() {
+  callServer('uiListarProdutosMercado', ['']).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  state.produtosMercado = res.produtos || [];
+  fillProdutoMetaSelect();
+  $('produtosTable').innerHTML = table([
+  { label: 'Produto', key: 'nomeProduto' }, { label: 'ID', key: 'idProduto' },
+  { label: 'Tipo', key: 'tipoModelo' }, { label: 'Coleção', key: 'colecaoJogo' }, { label: 'Estado', key: 'estadoCondicao' },
+  { label: 'País/Região', key: 'paisRegiao' }, { label: 'Idioma', key: 'idioma' }, { label: 'Mercado', key: 'mercadoReferencia' }, { label: 'Fonte', key: 'fontePrecoPreferencial' }
+  ], state.produtosMercado);
+  if (res.cabecalhosMercadoAusentes && res.cabecalhosMercadoAusentes.length) {
+  showMessage('Cabeçalhos ausentes em Produtos_Ativos: ' + res.cabecalhosMercadoAusentes.join(', ') + '. Rode "Criar Estrutura Base" de novo no menu da planilha para adicioná-los.', 'err');
+  }
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function fillProdutoMetaSelect() {
+  var sel = $('produtoMetaSelect');
+  if (!sel) return;
+  sel.innerHTML = state.produtosMercado.map(function(p) { return '<option value="' + escapeHtml(p.idProduto) + '">' + escapeHtml(p.nomeProduto + ' · ' + p.idProduto) + '</option>'; }).join('');
+  fillProdutoMetaForm();
+  }
+
+  function fillProdutoMetaForm() {
+  var form = $('produtoMetaForm'); if (!form) return;
+  var id = form.elements.idProduto.value;
+  var p = state.produtosMercado.filter(function(x) { return x.idProduto === id; })[0] || {};
+  form.elements.paisRegiao.value = p.paisRegiao || '';
+  form.elements.idioma.value = p.idioma || '';
+  form.elements.mercadoReferencia.value = p.mercadoReferencia || '';
+  form.elements.fontePrecoPreferencial.value = p.fontePrecoPreferencial || '';
+  }
+
+  function renderCompraMeta() {
+  var form = $('compraForm'); var box = $('compraProdutoMeta'); if (!form || !box) return;
+  var p = selectedProduct(form.elements.idProduto.value);
+  box.innerHTML = [card('País / Região', p.paisRegiao || '-'), card('Idioma', p.idioma || '-'), card('Mercado Referência', p.mercadoReferencia || '-'), card('Fonte Preço', p.fontePrecoPreferencial || '-')].join('');
+  }
+
+  function loadCarteira() {
+  callServer('uiObterCarteiraMercado', [{}]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro); var r = res.resumo || {};
+  $('carteiraCards').innerHTML = [card('Custo histórico', money(r.custoHistoricoTotal)), card('Valor mercado', money(r.valorMercadoTotal)), card('Ganho/perda', money(r.ganhoPerdaNaoRealizada), Number(r.ganhoPerdaNaoRealizada) >= 0 ? 'positive' : 'negative'), card('% ganho/perda', pct(r.percentualGanhoPerda)), card('Produtos com estoque', r.produtosComEstoque || 0)].join('');
+  $('carteiraTable').innerHTML = table([
+  { label: 'Produto', key: 'produto' }, { label: 'ID Produto', key: 'idProduto' },
+  { label: 'Qtd total', key: 'quantidadeTotal', num: true }, { label: 'Disponível', key: 'quantidadeDisponivel', num: true },
+  { label: 'Custo histórico', value: function(x) { return money(x.custoTotalHistorico); }, num: true },
+  { label: 'Valor mercado', value: function(x) { return money(x.valorMercadoTotal); }, num: true },
+  { label: 'Ganho/perda', value: function(x) { return money(x.ganhoPerdaNaoRealizada); }, num: true },
+  { label: 'Status preço', key: 'statusPreco' }, { label: 'Fonte', key: 'fontePreco' }
+  ], res.produtos || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadEstoque() {
+  callServer('uiConsultarEstoque', [{}]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('estoqueTable').innerHTML = table([
+  { label: 'ID Lote', key: 'idLote' }, { label: 'Produto', key: 'produto' }, { label: 'Status', key: 'statusLote' },
+  { label: 'Total', key: 'quantidadeTotal', num: true }, { label: 'Disponível', key: 'quantidadeDisponivel', num: true },
+  { label: 'Custo Unit.', value: function(x) { return money(x.custoUnitario); }, num: true },
+  { label: 'Custo Total', value: function(x) { return money(x.custoTotal); }, num: true },
+  { label: 'Mercado Total', value: function(x) { return money(x.valorMercadoTotal); }, num: true },
+  { label: 'G/P Não Real.', value: function(x) { return money(x.ganhoPerdaNaoRealizada); }, num: true },
+  { label: 'Preço', key: 'statusPreco' }
+  ], res.lotes || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadFinanceiro() {
+  callServer('uiObterResumoFinanceiro', [{}]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro); var t = res.totais || {};
+  $('financeiroCards').innerHTML = [
+  card('Capital líquido (aportes − retiradas)', money(t.capitalLiquido)),
+  card('Receita realizada', money(t.receitaRealizadaVendas)),
+  card('Custo vendido', money(t.custoVendido)),
+  card('Lucro bruto realizado', money(t.lucroBrutoRealizado)),
+  card('Despesas fixas', money(t.despesasFixas)),
+  card('Despesas variáveis', money(t.despesasVariaveis)),
+  card('Lucro após despesas', money(t.lucroLiquidoAposDespesas), Number(t.lucroLiquidoAposDespesas) >= 0 ? 'positive' : 'negative'),
+  card('Caixa teórico', money(t.caixaTeoricoAproximado))
+  ].join('');
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadDespesas() {
+  callServer('uiListarDespesas', [50]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('despesasTable').innerHTML = table([
+  { label: 'Data', key: 'Data Despesa' }, { label: 'Categoria', key: 'Categoria' },
+  { label: 'Natureza', key: 'Natureza (Fixa/Variável)' },
+  { label: 'Valor', value: function(x) { return money(x['Valor']); }, num: true },
+  { label: 'Descrição', key: 'Descrição' }
+  ], res.despesas || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadSocios() {
+  callServer('uiListarSocios').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  state.socios = res.socios || [];
+  var cards = [card('Caixa livre', money(res.caixaLivre))];
+  $('sociosCards').innerHTML = cards.concat(res.alertaMei ? [meiCardHtml(res.alertaMei)] : []).join('');
+  $('sociosTable').innerHTML = table([
+  { label: 'Sócio', key: 'nome' }, { label: 'Participação', value: function(x) { return pct(x.participacaoAtual); }, num: true },
+  { label: 'Total aportado', value: function(x) { return money(x.totalAportado); }, num: true },
+  { label: 'Lucro atribuído', value: function(x) { return money(x.lucroAtribuidoTotal); }, num: true },
+  { label: 'Lucro retirado', value: function(x) { return money(x.lucroRetiradoTotal); }, num: true },
+  { label: 'Lucro disponível', value: function(x) { return money(x.lucroDisponivel); }, num: true },
+  { label: 'Ativo', key: 'ativo' }
+  ], state.socios);
+
+  ['aporteSocioSelect', 'retiradaSocioSelect'].forEach(function(id) {
+  var sel = $(id); if (!sel) return;
+  var current = sel.value;
+  sel.innerHTML = state.socios.filter(function(s) { return s.ativo === 'Sim'; }).map(function(s) {
+  return '<option value="' + escapeHtml(s.idSocio) + '">' + escapeHtml(s.nome + ' (' + (s.participacaoAtual * 100).toFixed(2) + '%)') + '</option>';
+  }).join('');
+  if (current) sel.value = current;
+  });
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadAportes() {
+  callServer('uiListarAportesSocios').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('aportesTable').innerHTML = table([
+  { label: 'Data', key: 'Data Aporte' }, { label: 'Sócio', key: 'Sócio' },
+  { label: 'Valor', value: function(x) { return money(x['Valor']); }, num: true },
+  { label: 'Forma', key: 'Forma Pagamento' }, { label: 'Origem', key: 'Origem' }
+  ], res.aportes || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadRetiradas() {
+  callServer('uiListarRetiradas').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('retiradasTable').innerHTML = table([
+  { label: 'Data', key: 'Data Retirada' }, { label: 'Sócio', key: 'Sócio' },
+  { label: 'Solicitado', value: function(x) { return money(x['Valor Solicitado']); }, num: true },
+  { label: 'Aprovado', value: function(x) { return money(x['Valor Aprovado']); }, num: true },
+  { label: 'Status', key: 'Status' }
+  ], res.retiradas || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadProdutosFracionaveis() {
+  callServer('uiListarProdutosFracionaveis').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  var sel = $('aberturaProdutoSelect'); if (!sel) return;
+  sel.innerHTML = (res.produtos || []).map(function(p) {
+  return '<option value="' + escapeHtml(p.idProduto) + '">' + escapeHtml((p.colecaoJogo ? p.colecaoJogo + ' · ' : '') + p.nomeProduto) + '</option>';
+  }).join('');
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadLogs() {
+  callServer('uiObterUltimosLogs', [20]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('logsTable').innerHTML = table([{ label: 'Data/Hora', key: 'dataHora' }, { label: 'Sev.', key: 'severidade' }, { label: 'Módulo', key: 'modulo' }, { label: 'Operação', key: 'operacao' }, { label: 'Mensagem', key: 'mensagem' }, { label: 'Ref.', key: 'refId' }], res.logs || []);
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadHealth() {
+  callServer('uiExecutarHealthCheck').then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  $('healthCards').innerHTML = [card('Estrutura', res.estruturaOk ? 'OK' : 'Avisos', res.estruturaOk ? 'positive' : 'negative'), card('Produtos', res.contagens && res.contagens.produtos), card('Compras', res.contagens && res.contagens.compras), card('Vendas', res.contagens && res.contagens.vendas), card('Lotes', res.contagens && res.contagens.lotes)].join('');
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function loadProductsForForms() {
+  callServer('uiListarProdutosAtivos', ['']).then(function(res) {
+  state.products = res.produtos || [];
+  document.querySelectorAll('select[data-products]').forEach(function(sel) {
+  var current = sel.value;
+  sel.innerHTML = state.products.map(function(p) { return '<option value="' + escapeHtml(p.idProduto) + '">' + escapeHtml(p.nomeProduto + ' · ' + p.idProduto) + '</option>'; }).join('');
+  if (current) sel.value = current;
+  });
+  renderCompraMeta();
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
+  function formData(form) { var data = {}; Array.prototype.forEach.call(new FormData(form).entries(), function(pair) { data[pair[0]] = pair[1]; }); return data; }
+  function selectedProduct(id) { return state.products.filter(function(p) { return p.idProduto === id; })[0] || {}; }
+  function writeResult(id, obj) { $(id).textContent = JSON.stringify(obj, null, 2); }
+
+  function bindForms() {
+  $('produtoForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); d.negocio = NEGOCIO; callServer('uiCadastrarProduto', [d]).then(function(res) { writeResult('produtoResult', res); loadProdutos(); loadProductsForForms(); }).catch(function(err) { writeResult('produtoResult', { sucesso: false, erro: err.message }); }); });
+  $('produtoMetaForm').addEventListener('submit', function(e) { e.preventDefault(); callServer('uiAtualizarMetadadosProduto', [formData(e.target)]).then(function(res) { writeResult('produtoResult', res); loadProdutos(); loadProductsForForms(); }).catch(function(err) { writeResult('produtoResult', { sucesso: false, erro: err.message }); }); });
+  $('compraForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); var payload = { idRequisicao: uuid('UI-COMPRA'), cabecalho: { dataCompra: d.dataCompra || todayBR(), negocio: NEGOCIO, fornecedor: d.fornecedor, frete: d.frete, taxas: d.taxas, desconto: d.desconto, observacao: d.observacao }, itens: [{ idProduto: d.idProduto, quantidade: d.quantidade, valorUnitarioBruto: d.valorUnitarioBruto, observacao: d.observacao }] }; callServer('uiSalvarCompra', [payload]).then(function(res) { writeResult('compraResult', res); }).catch(function(err) { writeResult('compraResult', { sucesso: false, erro: err.message }); }); });
+  $('vendaForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); var payload = { idRequisicao: uuid('UI-VENDA'), cabecalho: { dataVenda: d.dataVenda || todayBR(), negocio: NEGOCIO, cliente: d.cliente, taxaVenda: d.taxaVenda, freteVenda: d.freteVenda, descontoVenda: d.descontoVenda, observacao: d.observacao }, itens: [{ idProduto: d.idProduto, quantidade: d.quantidade, valorUnitarioVenda: d.valorUnitarioVenda, observacao: d.observacao }] }; callServer('uiSalvarVenda', [payload]).then(function(res) { writeResult('vendaResult', res); }).catch(function(err) { writeResult('vendaResult', { sucesso: false, erro: err.message }); }); });
+  $('aberturaForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); callServer('uiRegistrarAberturaPokemon', [{ idProduto: d.idProduto, qtdAbrir: d.qtdAbrir, qtdGeradaPorUnidade: d.qtdGeradaPorUnidade, observacao: d.observacao }]).then(function(res) { writeResult('aberturaResult', res); }).catch(function(err) { writeResult('aberturaResult', { sucesso: false, erro: err.message }); }); });
+  $('socioForm').addEventListener('submit', function(e) { e.preventDefault(); callServer('uiCadastrarSocio', [formData(e.target)]).then(function(res) { writeResult('socioResult', res); loadSocios(); }).catch(function(err) { writeResult('socioResult', { sucesso: false, erro: err.message }); }); });
+  $('aporteForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); if (!d.idSocio) { writeResult('aporteResult', { sucesso: false, erro: 'Selecione o sócio.' }); return; } var payload = { idRequisicao: uuid('UI-APORTE'), idSocio: d.idSocio, data: d.data || todayBR(), valor: d.valor, formaPagamento: d.formaPagamento, origem: d.origem, observacao: d.observacao }; callServer('uiRegistrarAporteSocio', [payload]).then(function(res) { writeResult('aporteResult', res); loadSocios(); loadAportes(); loadDashboard(); }).catch(function(err) { writeResult('aporteResult', { sucesso: false, erro: err.message }); }); });
+  $('retiradaForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); if (!d.idSocio) { writeResult('retiradaResult', { sucesso: false, erro: 'Selecione o sócio.' }); return; } var payload = { idRequisicao: uuid('UI-RETIRADA'), idSocio: d.idSocio, data: d.data || todayBR(), valorSolicitado: d.valorSolicitado, formaPagamento: d.formaPagamento, observacao: d.observacao }; callServer('uiSolicitarRetirada', [payload]).then(function(res) { writeResult('retiradaResult', res); loadSocios(); loadRetiradas(); loadDashboard(); }).catch(function(err) { writeResult('retiradaResult', { sucesso: false, erro: err.message }); }); });
+  $('despesaForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); var payload = { idRequisicao: uuid('UI-DESPESA'), data: d.data || todayBR(), negocio: NEGOCIO, categoria: d.categoria, natureza: d.natureza, valor: d.valor, descricao: d.descricao, observacao: d.observacao }; callServer('uiRegistrarDespesa', [payload]).then(function(res) { writeResult('despesaResult', res); loadFinanceiro(); loadDespesas(); loadDashboard(); }).catch(function(err) { writeResult('despesaResult', { sucesso: false, erro: err.message }); }); });
+  $('precoForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); var p = selectedProduct(d.idProduto); var payload = { idRequisicao: uuid('UI-PRECO'), dataReferencia: todayBR(), idProduto: d.idProduto, negocio: p.negocio || NEGOCIO, precoUnitario: d.precoUnitario, fonte: d.fonte || 'Manual', linkReferencia: d.linkReferencia, estadoCondicao: p.estado || '', observacao: d.observacao }; callServer('uiRegistrarPrecoManual', [payload]).then(function(res) { writeResult('precoResult', res); }).catch(function(err) { writeResult('precoResult', { sucesso: false, erro: err.message }); }); });
+  }
+
+  function bindActions() {
+  document.querySelectorAll('.nav-item').forEach(function(btn) { btn.addEventListener('click', function() { go(btn.dataset.section); }); });
+  document.querySelectorAll('[data-go]').forEach(function(btn) { btn.addEventListener('click', function() { go(btn.dataset.go); }); });
+  $('refreshBtn').addEventListener('click', function() { loadSection(state.section); });
+  $('loadProdutosBtn').addEventListener('click', loadProdutos);
+  $('produtoMetaSelect').addEventListener('change', fillProdutoMetaForm);
+  document.querySelector('select[data-products="compra"]').addEventListener('change', renderCompraMeta);
+  $('loadCarteiraBtn').addEventListener('click', loadCarteira);
+  $('updateCarteiraBtn').addEventListener('click', function() { callServer('uiAtualizarPrecosCarteira', [{}]).then(function(res) { showMessage(res.observacao || 'Atualização concluída.', 'ok'); loadCarteira(); }).catch(function(e) { showMessage(e.message, 'err'); }); });
+  $('loadEstoqueBtn').addEventListener('click', loadEstoque);
+  $('loadFinanceiroBtn').addEventListener('click', function() { loadFinanceiro(); loadDespesas(); });
+  $('loadSociosBtn').addEventListener('click', function() { loadSocios(); loadAportes(); loadRetiradas(); });
+  $('loadLogsBtn').addEventListener('click', loadLogs);
+  $('healthBtn').addEventListener('click', loadHealth);
+  $('buscarPrecoBtn').addEventListener('click', function() { var d = formData($('precoForm')); callServer('uiBuscarPrecoProduto', [{ idProduto: d.idProduto }]).then(function(res) { writeResult('precoResult', res); }).catch(function(err) { writeResult('precoResult', { sucesso: false, erro: err.message }); }); });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() { bindActions(); bindForms(); loadProductsForForms(); go('dashboard'); });
+  })();
+  </script>
+  
