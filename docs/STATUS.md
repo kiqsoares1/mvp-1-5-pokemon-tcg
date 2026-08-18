@@ -35,14 +35,15 @@ detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
   deve ser reintroduzido). O bundle não tem nada de valor que já não esteja resumido em
   `CONTEXTO.md`/`REGRAS_DE_NEGOCIO.md`. Bundle mantido apenas no Downloads do Kaique, sem
   branch de arquivo no repositório.
+- `2. Instalar / Inicializar Sistema` rodado via menu MVP 1.5 na planilha HML (automação de
+  navegador, clicando no menu real — sem digitar dado estruturado). Resultado: "INSTALAÇÃO
+  CONCLUÍDA COM SUCESSO" — estrutura válida, 4 abas auxiliares ocultadas, 13 abas
+  protegidas. Em seguida "Validar Estrutura Completa" confirmou 100% ✅ de novo (26 abas,
+  cabeçalhos, Config_App, Configuracoes todos presentes) — planilha HML pronta pra uso.
 
 **Pendente:**
 - Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — ainda não executados nesta
-  rodada; a sessão foi interrompida para reestruturar o projeto em repositório/documentos
-  antes de prosseguir.
-- `2. Instalar / Inicializar Sistema` estava prestes a ser rodado quando a sessão mudou de
-  foco para a reorganização do repositório — falta confirmar que roda limpo depois da
-  correção do `Natureza Despesa`.
+  rodada.
 
 ## Como usar este arquivo
 
