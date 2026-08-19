@@ -69,10 +69,28 @@ push`** — só editado na pasta local clonada). Destaques por severidade:
 - Todos os arquivos editados passaram por `node --check` (validação de sintaxe) antes
   de finalizar — sem erros.
 
+**`clasp push`/`git push` já rodados nesta sessão** (na máquina do Kaique, não no
+sandbox de nuvem) — código no GitHub e no Apps Script ao vivo atualizados. Rodado ao
+vivo na planilha HML via automação de navegador:
+- "1. Criar Estrutura Base": ✅ criou a coluna `ID Requisição` em `Aportes_Socios` e
+  `Retiradas`, sem erros.
+- "2. Instalar / Inicializar Sistema": revelou um bug pré-existente —
+  `GovernanceService.aplicarProtecoesSilencioso` nunca tinha sido exportada na
+  interface pública da IIFE; a limpeza desta sessão (remoção do bloco de fallback
+  duplicado em `InstallService.instalar()`) tirou o disfarce que escondia isso.
+  Corrigido (exportada), `clasp push`/`git push` de novo, confirmado via Health Check:
+  abas protegidas foi de 0 para 13/16.
+- "Validar Estrutura Completa": ✅ 100% — 26 abas, cabeçalhos, Config_App,
+  Configuracoes todos presentes.
+
 **Pendente:**
-- **`clasp push` ainda não rodado** — as correções estão só na pasta local clonada,
-  não no projeto Apps Script ao vivo nem na planilha HML. Rodar `clasp push` e depois
-  "Validar Estrutura Completa" antes de considerar a sessão fechada.
+- **3 abas ainda sem proteção**: `Socios`, `Aportes_Socios`, `Retiradas` (as recém
+  adicionadas a `ABAS_PROTEGIDAS` nesta sessão) apareceram como "Sem proteção" no
+  Health Check mesmo depois do fix. Rodar "Instalação & Setup → Aplicar Proteções de
+  Abas" de novo manualmente e conferir — não foi possível confirmar o resultado dessa
+  rodada específica por instabilidade da automação de navegador (Google Sheets ficou
+  sem responder a `screenshot`/CDP repetidamente; as ações via árvore de acessibilidade
+  continuaram funcionando).
 - `Portal.html` não ganhou um checkbox/campo para acionar `pagoDoBolsoPorSocio` no
   formulário de despesa — hoje só é utilizável via chamada direta ao backend.
 - Cobertura de teste automatizado (assert real) ainda baixa fora dos dois testes de
