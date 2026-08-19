@@ -253,3 +253,39 @@ function gerarDadosDemo() {
   Logger.log(JSON.stringify(resumo, null, 2));
   return resumo;
 }
+
+/**
+ * limparDadosDemo()
+ * ------------------------------------------------------------
+ * Apaga (mantendo cabecalho) todas as linhas das abas povoadas por
+ * gerarDadosDemo(), para permitir regenerar a massa de dados do zero
+ * sem duplicar socios/aportes/compras/vendas/etc.
+ *
+ * Copiar/rodar apenas em homologacao (HML) - nunca em producao.
+ * ------------------------------------------------------------
+ */
+function limparDadosDemo() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var abas = [
+    'Socios', 'Aportes_Socios', 'Historico_Participacoes', 'Retiradas',
+    'Lucro_Por_Item_Socio', 'Resumo_Socios',
+    'Produtos_Ativos', 'Compras', 'Itens_Compra',
+    'Vendas', 'Itens_Venda',
+    'Lotes_Estoque', 'Movimentos_Estoque', 'Pokemon_Abertura_Box',
+    'Despesas'
+  ];
+  var resultado = [];
+  abas.forEach(function (nome) {
+    var sh = ss.getSheetByName(nome);
+    if (!sh) { resultado.push(nome + ': aba nao encontrada'); return; }
+    var ultimaLinha = sh.getLastRow();
+    if (ultimaLinha > 1) {
+      sh.getRange(2, 1, ultimaLinha - 1, sh.getLastColumn()).clearContent();
+      resultado.push(nome + ': ' + (ultimaLinha - 1) + ' linhas limpas');
+    } else {
+      resultado.push(nome + ': ja estava vazia');
+    }
+  });
+  Logger.log(resultado.join('\n'));
+  return resultado;
+}

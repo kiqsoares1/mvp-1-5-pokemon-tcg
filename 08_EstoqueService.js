@@ -104,7 +104,7 @@ var EstoqueService = (function () {
       var l = todos[i];
       if (l[C_LOTE.ID_PRODUTO] !== idProduto) continue;
       var qtdDisp = parseFloat(l[C_LOTE.QTD_DISPONIVEL] || 0);
-      var status  = Utils.normalizar(l[C_LOTE.STATUS] || '');
+      var status  = Utils.normalizar(l[C_LOTE.STATUS] || '').toLowerCase();
       if (qtdDisp > 0 && (status === 'disponível' || status === 'parcial')) {
         resultado.push({
           idLote:       l[C_LOTE.ID_LOTE],
