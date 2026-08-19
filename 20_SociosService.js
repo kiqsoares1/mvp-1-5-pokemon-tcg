@@ -134,8 +134,6 @@ var SociosService = (function () {
     totalGeral = Utils.arredondar(totalGeral, 2);
 
     var linhasHistorico = [];
-    var sheetSocios = SheetService.getSheet(ABA_SOCIOS);
-    var mapaColunas = SheetService.getMapaColunas(ABA_SOCIOS);
 
     for (var i = 0; i < socios.length; i++) {
       var s = socios[i];
@@ -143,10 +141,13 @@ var SociosService = (function () {
       var totalSocio = _numero(s[C_SOCIO.TOTAL_APORTADO]);
       var pct = (ehAtivo && totalGeral > 0) ? Utils.arredondar(totalSocio / totalGeral, 6) : 0;
 
-      // Atualiza "foto atual" na aba Socios
+      // Atualiza "foto atual" na aba Socios (protegido por lock, os dois
+      // campos gravados juntos numa única seção crítica)
       var linhaPlanilha = i + 2; // +2: cabeçalho + 0-based
-      sheetSocios.getRange(linhaPlanilha, mapaColunas[C_SOCIO.PARTICIPACAO_ATUAL]).setValue(pct);
-      sheetSocios.getRange(linhaPlanilha, mapaColunas[C_SOCIO.DATA_ATUALIZACAO]).setValue(Utils.timestamp());
+      var camposParticipacao = {};
+      camposParticipacao[C_SOCIO.PARTICIPACAO_ATUAL] = pct;
+      camposParticipacao[C_SOCIO.DATA_ATUALIZACAO] = Utils.timestamp();
+      SheetService.atualizarCamposLinha(ABA_SOCIOS, linhaPlanilha, camposParticipacao);
 
       if (ehAtivo) {
         var linhaHist = {};
@@ -276,11 +277,11 @@ var SociosService = (function () {
 
     SheetService.appendLinha(ABA_APORTES, linha);
 
-    // Atualiza total aportado do sócio
-    var sheetSocios = SheetService.getSheet(ABA_SOCIOS);
-    var mapaColunas = SheetService.getMapaColunas(ABA_SOCIOS);
+    // Atualiza total aportado do sócio (protegido por lock)
     var novoTotal = Utils.arredondar(_numero(registroSocio.dados[C_SOCIO.TOTAL_APORTADO]) + valor, 2);
-    sheetSocios.getRange(registroSocio.linha, mapaColunas[C_SOCIO.TOTAL_APORTADO]).setValue(novoTotal);
+    var camposTotal = {};
+    camposTotal[C_SOCIO.TOTAL_APORTADO] = novoTotal;
+    SheetService.atualizarCamposLinha(ABA_SOCIOS, registroSocio.linha, camposTotal);
 
     // Recalcula participação de todos os sócios ativos (regra: nunca retroage)
     recalcularParticipacoes_(data, 'Aporte ' + idAporte + ' (' + registroSocio.dados[C_SOCIO.NOME] + ')');
@@ -342,10 +343,18 @@ var SociosService = (function () {
     var linhas = [];
     var totalPorSocio = {}; // idSocio -> soma lucro atribuído nesta venda
 
+    // A participação de cada sócio não muda entre os itens de uma mesma
+    // venda (mesma dataVenda) — calcular uma vez aqui evita reler
+    // Historico_Participacoes inteiro (itens × sócios) vezes por venda.
+    var pctPorSocio = {};
+    sociosAtivos.forEach(function(s) {
+      pctPorSocio[s.idSocio] = _participacaoVigenteEm(s.idSocio, dataVenda);
+    });
+
     itensDaVenda.forEach(function(item) {
       var lucroItem = _numero(item.lucroBrutoItem);
       sociosAtivos.forEach(function(s) {
-        var pct = _participacaoVigenteEm(s.idSocio, dataVenda);
+        var pct = pctPorSocio[s.idSocio];
         if (pct <= 0) return;
         var lucroAtribuido = Utils.arredondar(lucroItem * pct, 4);
 
@@ -369,17 +378,18 @@ var SociosService = (function () {
     if (linhas.length > 0) SheetService.appendLinhas(ABA_LUCRO_ITEM, linhas);
 
     // Atualiza lucro atribuído total / disponível de cada sócio impactado
-    var sheetSocios = SheetService.getSheet(ABA_SOCIOS);
-    var mapaColunas = SheetService.getMapaColunas(ABA_SOCIOS);
+    // (protegido por lock, os 3 campos gravados juntos por sócio)
     Object.keys(totalPorSocio).forEach(function(idSocio) {
       var reg = _buscarSocio(idSocio);
       if (!reg) return;
       var novoAtribuido = Utils.arredondar(_numero(reg.dados[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL]) + totalPorSocio[idSocio], 2);
       var retirado = _numero(reg.dados[C_SOCIO.LUCRO_RETIRADO_TOTAL]);
       var disponivel = Utils.arredondar(novoAtribuido - retirado, 2);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL]).setValue(novoAtribuido);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.LUCRO_DISPONIVEL]).setValue(disponivel);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.DATA_ATUALIZACAO]).setValue(Utils.timestamp());
+      var campos = {};
+      campos[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL] = novoAtribuido;
+      campos[C_SOCIO.LUCRO_DISPONIVEL] = disponivel;
+      campos[C_SOCIO.DATA_ATUALIZACAO] = Utils.timestamp();
+      SheetService.atualizarCamposLinha(ABA_SOCIOS, reg.linha, campos);
     });
 
     LogService.info('SociosService', 'reconhecerLucroDaVenda',
@@ -476,13 +486,13 @@ var SociosService = (function () {
     SheetService.appendLinha(ABA_RETIRADAS, linha);
 
     if (valorAprovado > 0) {
-      var sheetSocios = SheetService.getSheet(ABA_SOCIOS);
-      var mapaColunas = SheetService.getMapaColunas(ABA_SOCIOS);
       var novoRetirado = Utils.arredondar(_numero(reg.dados[C_SOCIO.LUCRO_RETIRADO_TOTAL]) + valorAprovado, 2);
       var novoDisponivel = Utils.arredondar(lucroDisponivel - valorAprovado, 2);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.LUCRO_RETIRADO_TOTAL]).setValue(novoRetirado);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.LUCRO_DISPONIVEL]).setValue(novoDisponivel);
-      sheetSocios.getRange(reg.linha, mapaColunas[C_SOCIO.DATA_ATUALIZACAO]).setValue(Utils.timestamp());
+      var camposRetirada = {};
+      camposRetirada[C_SOCIO.LUCRO_RETIRADO_TOTAL] = novoRetirado;
+      camposRetirada[C_SOCIO.LUCRO_DISPONIVEL] = novoDisponivel;
+      camposRetirada[C_SOCIO.DATA_ATUALIZACAO] = Utils.timestamp();
+      SheetService.atualizarCamposLinha(ABA_SOCIOS, reg.linha, camposRetirada);
 
       // Reflete no Financeiro gerencial genérico como saída de caixa (Resgate).
       try {

@@ -27,25 +27,17 @@ var ValidationService = (function() {
    * @returns {{ok: boolean, ausentes: Array<string>}}
    */
   function validarAbas() {
-    var todasAbas = Object.values(CONFIG.ABAS);
-    var ausentes = [];
-
-    todasAbas.forEach(function(nomeAba) {
-      if (!SheetService.abaExiste(nomeAba)) {
-        ausentes.push(nomeAba);
-      }
-    });
-
-    var ok = ausentes.length === 0;
-    var msg = ok
-      ? '✅ Todas as ' + todasAbas.length + ' abas obrigatórias estão presentes.'
-      : '❌ Abas ausentes (' + ausentes.length + '):\n' + ausentes.join('\n');
+    var res = validarAbasSilencioso();
+    var totalAbas = Object.keys(CONFIG.ABAS).length;
+    var msg = res.ok
+      ? '✅ Todas as ' + totalAbas + ' abas obrigatórias estão presentes.'
+      : '❌ Abas ausentes (' + res.ausentes.length + '):\n' + res.ausentes.join('\n');
 
     logInfo('05_ValidationService', 'validarAbas',
-      ok ? 'Validação de abas: OK' : 'Abas ausentes: ' + ausentes.join(', '));
+      res.ok ? 'Validação de abas: OK' : 'Abas ausentes: ' + res.ausentes.join(', '));
 
     Utils.alerta('Validação de Abas', msg);
-    return { ok: ok, ausentes: ausentes };
+    return res;
   }
 
   // ============================================================
@@ -71,48 +63,24 @@ var ValidationService = (function() {
 
   /**
    * Valida cabeçalhos de todas as abas com campos definidos em CONFIG.CAMPOS.
-   * Usa mapeamento explícito para aliases que diferem entre CONFIG.CAMPOS e CONFIG.ABAS.
+   *
+   * Toda chave de CONFIG.CAMPOS é, por convenção do projeto, a mesma chave
+   * em CONFIG.ABAS (ex: CONFIG.CAMPOS.PRODUTOS_ATIVOS ↔ CONFIG.ABAS.PRODUTOS_ATIVOS)
+   * — por isso o nome real da aba é lido direto de CONFIG.ABAS[aliasAba], sem
+   * precisar de um mapa paralelo. Um mapa manual duplicado aqui já causou o
+   * risco de uma aba nova em CONFIG.CAMPOS ser esquecida no mapa e ficar
+   * silenciosamente fora da validação (nenhum erro reportado).
    * @returns {{ok: boolean, erros: Array<string>}}
    */
   function validarTodosCabecalhos() {
     var erros = [];
 
-    // Mapeamento explícito: alias em CONFIG.CAMPOS → nome real da aba
-    // Necessário para aliases que diferem de CONFIG.ABAS (ex: MAPA_SALDOS vs MAPA_SALDOS_PATRIMONIO)
-    var MAPA_ALIAS_ABA = {
-      PRODUTOS_ATIVOS:      CONFIG.ABAS.PRODUTOS_ATIVOS,
-      COMPRAS:              CONFIG.ABAS.COMPRAS,
-      ITENS_COMPRA:         CONFIG.ABAS.ITENS_COMPRA,
-      VENDAS:               CONFIG.ABAS.VENDAS,
-      ITENS_VENDA:          CONFIG.ABAS.ITENS_VENDA,
-      LOTES_ESTOQUE:        CONFIG.ABAS.LOTES_ESTOQUE,
-      MOVIMENTOS_ESTOQUE:   CONFIG.ABAS.MOVIMENTOS_ESTOQUE,
-      POKEMON_ABERTURA_BOX: CONFIG.ABAS.POKEMON_ABERTURA_BOX,
-      APORTES_RESGATES:     CONFIG.ABAS.APORTES_RESGATES,
-      DESPESAS:             CONFIG.ABAS.DESPESAS,
-      REFERENCIAS_PRECO:    CONFIG.ABAS.REFERENCIAS_PRECO,
-      CONFIGURACOES:        CONFIG.ABAS.CONFIGURACOES,
-      LOGS_SISTEMA:         CONFIG.ABAS.LOGS_SISTEMA,
-      CONFIG_APP:           CONFIG.ABAS.CONFIG_APP,
-      EXECUCOES_TESTES:     CONFIG.ABAS.EXECUCOES_TESTES,
-      ERROS_SISTEMA:        CONFIG.ABAS.ERROS_SISTEMA,
-      // Abas de resumo/dashboard (adicionadas na correção v2)
-      DASHBOARD:            CONFIG.ABAS.DASHBOARD,
-      RESUMO_CAPITAL_LUCRO: CONFIG.ABAS.RESUMO_CAPITAL_LUCRO,
-      MAPA_SALDOS:          CONFIG.ABAS.MAPA_SALDOS,
-      EXEMPLOS_TESTE:       CONFIG.ABAS.EXEMPLOS_TESTE,
-      // Módulo societário (v1.6.0)
-      SOCIOS:                  CONFIG.ABAS.SOCIOS,
-      APORTES_SOCIOS:          CONFIG.ABAS.APORTES_SOCIOS,
-      HISTORICO_PARTICIPACOES: CONFIG.ABAS.HISTORICO_PARTICIPACOES,
-      RETIRADAS:               CONFIG.ABAS.RETIRADAS,
-      LUCRO_POR_ITEM_SOCIO:    CONFIG.ABAS.LUCRO_POR_ITEM_SOCIO,
-      RESUMO_SOCIOS:           CONFIG.ABAS.RESUMO_SOCIOS
-    };
-
     Object.keys(CONFIG.CAMPOS).forEach(function(aliasAba) {
-      var nomeAba = MAPA_ALIAS_ABA[aliasAba];
-      if (!nomeAba) return; // alias sem mapeamento: ignorar
+      var nomeAba = CONFIG.ABAS[aliasAba];
+      if (!nomeAba) {
+        erros.push('[CONFIG] Alias "' + aliasAba + '" existe em CONFIG.CAMPOS mas não em CONFIG.ABAS.');
+        return;
+      }
       var campos = Object.values(CONFIG.CAMPOS[aliasAba]);
       var resultado = validarCabecalhosAba(nomeAba, campos);
       if (!resultado.ok) {
@@ -135,21 +103,16 @@ var ValidationService = (function() {
    * @returns {{ok: boolean, ausentes: Array<string>}}
    */
   function validarConfigApp() {
-    var params = SheetService.lerTodosConfigApp();
-    var ausentes = CONFIG.PARAMS_OBRIGATORIOS.filter(function(p) {
-      return !params[p] || Utils.eVazio(params[p]);
-    });
-
-    var ok = ausentes.length === 0;
-    var msg = ok
+    var res = validarConfigAppSilencioso();
+    var msg = res.ok
       ? '✅ Config_App: todos os ' + CONFIG.PARAMS_OBRIGATORIOS.length + ' parâmetros presentes.'
-      : '❌ Config_App: parâmetros ausentes:\n' + ausentes.join('\n');
+      : '❌ Config_App: parâmetros ausentes:\n' + res.ausentes.join('\n');
 
     logInfo('05_ValidationService', 'validarConfigApp',
-      ok ? 'Config_App OK' : 'Parâmetros ausentes: ' + ausentes.join(', '));
+      res.ok ? 'Config_App OK' : 'Parâmetros ausentes: ' + res.ausentes.join(', '));
 
     Utils.alerta('Validação Config_App', msg);
-    return { ok: ok, ausentes: ausentes };
+    return res;
   }
 
   // ============================================================
@@ -162,25 +125,16 @@ var ValidationService = (function() {
    * @returns {{ok: boolean, ausentes: Array<string>}}
    */
   function validarConfiguracoes() {
-    var ausentes = [];
-
-    CONFIG.GRUPOS_CONFIGURACOES_OBRIGATORIOS.forEach(function(grupo) {
-      var valores = SheetService.lerGrupoConfiguracoes(grupo);
-      if (valores.length === 0) {
-        ausentes.push(grupo);
-      }
-    });
-
-    var ok = ausentes.length === 0;
-    var msg = ok
+    var res = validarConfiguracoesSilencioso();
+    var msg = res.ok
       ? '✅ Configuracoes: todos os ' + CONFIG.GRUPOS_CONFIGURACOES_OBRIGATORIOS.length + ' grupos presentes.'
-      : '❌ Configuracoes: grupos ausentes:\n' + ausentes.join('\n');
+      : '❌ Configuracoes: grupos ausentes:\n' + res.ausentes.join('\n');
 
     logInfo('05_ValidationService', 'validarConfiguracoes',
-      ok ? 'Configuracoes OK' : 'Grupos ausentes: ' + ausentes.join(', '));
+      res.ok ? 'Configuracoes OK' : 'Grupos ausentes: ' + res.ausentes.join(', '));
 
     Utils.alerta('Validação Configuracoes', msg);
-    return { ok: ok, ausentes: ausentes };
+    return res;
   }
 
   // ============================================================
@@ -274,8 +228,9 @@ var ValidationService = (function() {
   }
 
   function validarConfiguracoesSilencioso() {
+    var todosGrupos = SheetService.lerTodosGruposConfiguracoes();
     var ausentes = CONFIG.GRUPOS_CONFIGURACOES_OBRIGATORIOS.filter(function(grupo) {
-      return SheetService.lerGrupoConfiguracoes(grupo).length === 0;
+      return !todosGrupos[grupo] || todosGrupos[grupo].length === 0;
     });
     return { ok: ausentes.length === 0, ausentes: ausentes };
   }

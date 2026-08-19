@@ -223,31 +223,9 @@
  ? GovernanceService.aplicarProtecoesSilencioso()
  : { ok: false, protegidas: [], erros: ['método não disponível'] };
 
- // Fallback: chama via método público
- try {
- var ss = SheetService.getSpreadsheet();
- var protegidas = [];
- var errosProtecao = [];
- CONFIG.ABAS_PROTEGIDAS.forEach(function(nomeAba) {
- try {
- if (!SheetService.abaExiste(nomeAba)) return;
- var sheet = SheetService.getSheet(nomeAba);
- var existentes = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
- existentes.forEach(function(p) { p.remove(); });
- var prot = sheet.protect();
- prot.setDescription('Protegida pelo MVP 1.5 — instalação automática');
- prot.setWarningOnly(true);
- protegidas.push(nomeAba);
- } catch (pe) {
- errosProtecao.push(nomeAba + ': ' + pe.message);
- }
- });
- relatorio.push('Proteções: ' + protegidas.length + ' abas protegidas');
- if (errosProtecao.length > 0) {
- relatorio.push('Erros de proteção: ' + errosProtecao.join(', '));
- }
- } catch (e) {
- relatorio.push('Proteções: erro geral — ' + e.message);
+ relatorio.push('Proteções: ' + resProtecoes.protegidas.length + ' abas protegidas');
+ if (resProtecoes.erros.length > 0) {
+ relatorio.push('Erros de proteção: ' + resProtecoes.erros.join(', '));
  }
 
  // 4. Log de instalação
@@ -362,7 +340,12 @@
  Utils.toast('Reaplicando estrutura...', 'MVP 1.5', 5);
  logInfo('17_InstallService', 'reaplicarEstrutura', 'Reaplicação de estrutura iniciada.');
 
- GovernanceService.prepararAmbienteHML();
+ // Usa aplicarProtecoes() (não prepararAmbienteHML) para respeitar o
+ // AMBIENTE atual (Config_App.AMBIENTE / CONFIG.AMBIENTE): rodar esta
+ // função numa planilha já em PROD com proteção real (setWarningOnly(false))
+ // não pode rebaixar silenciosamente essa proteção para "somente aviso".
+ GovernanceService.ocultarAbasAuxiliares();
+ GovernanceService.aplicarProtecoes();
 
  logInfo('17_InstallService', 'reaplicarEstrutura', 'Reaplicação concluída.');
  }

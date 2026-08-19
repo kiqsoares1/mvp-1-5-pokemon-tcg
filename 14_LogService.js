@@ -145,13 +145,29 @@ var LogService = (function() {
       limite.setDate(limite.getDate() - dias);
       var removidos = 0;
 
-      // Percorre de baixo para cima para não deslocar índices
+      // Percorre de baixo para cima para não deslocar índices, agrupando
+      // blocos contíguos de linhas a remover num único deleteRows() em vez
+      // de uma chamada deleteRow() por linha (abas de log antigas podem
+      // ter milhares de linhas a limpar de uma vez).
+      var fimBloco = -1; // índice de linha da planilha (1-based) do fim do bloco atual
       for (var i = dados.length - 1; i >= 0; i--) {
         var dataLog = Utils.parsarData(String(dados[i][1]).split(' ')[0]);
-        if (dataLog && dataLog < limite) {
-          sheet.deleteRow(i + 2); // +2: cabeçalho + 0-based
+        var linhaPlanilha = i + 2; // +2: cabeçalho + 0-based
+        var remover = dataLog && dataLog < limite;
+
+        if (remover) {
           removidos++;
+          if (fimBloco === -1) fimBloco = linhaPlanilha;
+          continue;
         }
+
+        if (fimBloco !== -1) {
+          sheet.deleteRows(linhaPlanilha + 1, fimBloco - linhaPlanilha);
+          fimBloco = -1;
+        }
+      }
+      if (fimBloco !== -1) {
+        sheet.deleteRows(2, fimBloco - 1);
       }
 
       info('14_LogService', 'limparLogsAntigos',

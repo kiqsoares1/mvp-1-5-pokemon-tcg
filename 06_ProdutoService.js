@@ -203,7 +203,7 @@ var ProdutoService = (function () {
       return { valido: false, motivo: 'Produto Gerado Padrão está inativo.' };
     }
 
-    return { valido: true, motivo: 'OK' };
+    return { valido: true, motivo: 'OK', produtoGerado: produtoGerado };
   }
 
   // ============================================================
@@ -312,7 +312,7 @@ var ProdutoService = (function () {
 
     var idGerado  = produto[CAMPOS.PRODUTO_GERADO];
     var qtdPadrao = parseInt(produto[CAMPOS.QTD_GERADA_PADRAO] || 0, 10);
-    var prodGerado = _buscarPorId(idGerado);
+    var prodGerado = frac.produtoGerado; // já buscado por _validarFracionamento, evita releitura
 
     LogService.info('ProdutoService', 'validarParaAbertura',
       'Produto validado para abertura: ' + idProduto + ' → gera ' + qtdPadrao + 'x ' + idGerado,

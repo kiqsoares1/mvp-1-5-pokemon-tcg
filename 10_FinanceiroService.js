@@ -35,7 +35,11 @@
  }
 
  function _normalizar(valor) {
- return Utils.normalizar(valor).toLowerCase();
+ // Usa Utils.normalizarChave (trim + minúsculas + sem acento) para bater
+ // com a normalização usada em PrecoReferenciaService/UiService — antes
+ // esta função não removia acento, então "Pokemon TCG" (sem acento) podia
+ // bater no filtro de estoque/preço mas não no financeiro.
+ return Utils.normalizarChave(valor);
  }
 
  function _data(valor) {
@@ -126,11 +130,15 @@
  }
 
  try {
+ // Fallback só usado quando a aba de destino não tem coluna "ID Requisição"
+ // (ou a busca acima falhou tecnicamente). Checa Módulo+Severidade em vez
+ // de um trecho fixo da mensagem de log — texto de mensagem pode mudar em
+ // qualquer revisão futura e quebraria essa proteção silenciosamente.
  var logs = SheetService.buscarPorCampo(ABA_LOGS, C_LOG.REF_ID, idRequisicao);
  for (var i = 0; i < logs.length; i++) {
  var dados = logs[i].dados;
  if (String(dados[C_LOG.MODULO]) === 'FinanceiroService' &&
- String(dados[C_LOG.MENSAGEM]).indexOf('Financeiro registrado') !== -1) {
+ String(dados[C_LOG.SEVERIDADE]) === 'INFO') {
  return true;
  }
  }
@@ -197,7 +205,11 @@
  var validacao = _validarPayloadBase(payload, 'data', 'valor');
  if (Utils.eVazio(payload.categoria)) validacao.erros.push('Categoria é obrigatória.');
  if (Utils.eVazio(payload.descricao)) validacao.erros.push('Descrição é obrigatória.');
- if (Utils.eVazio(payload.natureza)) validacao.erros.push('Natureza (Fixa/Variável) é obrigatória.');
+ if (Utils.eVazio(payload.natureza)) {
+ validacao.erros.push('Natureza (Fixa/Variável) é obrigatória.');
+ } else if (!Utils.estaNaLista(payload.natureza, CONFIG.LISTAS.NATUREZA_DESPESA)) {
+ validacao.erros.push('Natureza inválida. Use: ' + CONFIG.LISTAS.NATUREZA_DESPESA.join(', '));
+ }
  validacao.valido = validacao.erros.length === 0;
 
  if (!validacao.valido) {
@@ -226,11 +238,36 @@
 
  try {
  _appendObjeto(ABA_DESPESAS, linha);
- return _sucesso('registrarDespesa', 'Despesa registrada: ' + idDespesa + ' | Valor: ' + validacao.valor, idDespesa, payload.idRequisicao);
  } catch (e) {
  LogService.error('FinanceiroService', 'registrarDespesa', 'Erro técnico ao registrar despesa: ' + e.message, payload.idRequisicao);
  return { sucesso: false, id: null, erro: 'Erro técnico ao registrar despesa: ' + e.message, detalhes: [e.message] };
  }
+
+ var resultado = _sucesso('registrarDespesa', 'Despesa registrada: ' + idDespesa + ' | Valor: ' + validacao.valor, idDespesa, payload.idRequisicao);
+
+ // Despesa paga do próprio bolso de um sócio vira aporte automático dele
+ // (regra de negócio: não existe reembolso separado, nem empréstimo de
+ // sócio para a empresa). Roda depois da despesa já estar gravada; falha
+ // aqui não desfaz a despesa, só fica em log para correção manual.
+ if (!Utils.eVazio(payload.pagoDoBolsoPorSocio)) {
+ try {
+ if (typeof SociosService !== 'undefined' && SociosService.converterDespesaEmAporte_) {
+ var resAporte = SociosService.converterDespesaEmAporte_(
+ payload.pagoDoBolsoPorSocio, validacao.valor, idDespesa, payload.observacao || '');
+ resultado.aporteConvertido = resAporte;
+ if (!resAporte || !resAporte.sucesso) {
+ LogService.error('FinanceiroService', 'registrarDespesa',
+ 'Despesa ' + idDespesa + ' marcada como paga do bolso, mas falhou ao converter em aporte: ' +
+ (resAporte ? resAporte.erro : 'SociosService indisponível'), idDespesa);
+ }
+ }
+ } catch (se) {
+ LogService.error('FinanceiroService', 'registrarDespesa',
+ 'Falha ao converter despesa ' + idDespesa + ' em aporte de sócio: ' + se.message, idDespesa);
+ }
+ }
+
+ return resultado;
  }
 
  function _passaFiltros(registro, campoNegocio, campoData, filtros) {
@@ -288,12 +325,15 @@
  var registros = SheetService.getDadosComoObjetos(ABA_DESPESAS);
  var resultado = { fixas: 0, variaveis: 0, semNatureza: 0 };
 
+ var NATUREZA_FIXA = _normalizar(CONFIG.LISTAS.NATUREZA_DESPESA[0]); // 'Fixa'
+ var NATUREZA_VARIAVEL = _normalizar(CONFIG.LISTAS.NATUREZA_DESPESA[1]); // 'Variável'
+
  registros.forEach(function(r) {
  if (!_passaFiltros(r, C_DESP.NEGOCIO, C_DESP.DATA_DESPESA, filtros)) return;
  var valor = _numero(r[C_DESP.VALOR]);
  var natureza = _normalizar(r[C_DESP.NATUREZA]);
- if (natureza === 'fixa') resultado.fixas += valor;
- else if (natureza === 'variavel' || natureza === 'variável') resultado.variaveis += valor;
+ if (natureza === NATUREZA_FIXA) resultado.fixas += valor;
+ else if (natureza === NATUREZA_VARIAVEL) resultado.variaveis += valor;
  else resultado.semNatureza += valor;
  });
 
@@ -429,7 +469,7 @@
  },
  limitacoes: [
  'Caixa teórico aproximado usa capital líquido - compras + receita líquida de vendas - despesas.',
- 'Valor de estoque usa custo histórico e quantidades disponíveis, hold e trade lock.',
+ 'Valor de estoque usa custo histórico e quantidades disponíveis e em hold.',
  'Ganho/perda não realizada e preço de referência não entram no lucro realizado.'
  ],
  erro: null

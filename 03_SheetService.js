@@ -300,19 +300,30 @@ var SheetService = (function() {
   }
 
   /**
-   * Atualiza uma célula específica em uma aba.
+   * Atualiza uma célula específica em uma aba, protegida por LockService.
+   * Sem o lock, duas atualizações concorrentes na mesma linha (ex.: saldo
+   * de sócio sendo atualizado pelo Portal por duas ações ao mesmo tempo)
+   * podem se sobrepor de forma imprevisível.
    * @param {string} nomeAba
    * @param {number} linha - 1-based
    * @param {number} coluna - 1-based
    * @param {*} valor
    */
   function setCelula(nomeAba, linha, coluna, valor) {
-    var sheet = getSheet(nomeAba);
-    sheet.getRange(linha, coluna).setValue(valor);
+    var lock = LockService.getDocumentLock();
+    lock.waitLock(10000);
+    try {
+      var sheet = getSheet(nomeAba);
+      sheet.getRange(linha, coluna).setValue(valor);
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   /**
    * Atualiza uma célula pelo nome do campo (cabeçalho).
+   * Reaproveita o lock de setCelula (não adquire lock próprio, evitando
+   * lock duplo aninhado).
    * @param {string} nomeAba
    * @param {number} numLinha - 1-based (linha de dados, incluindo cabeçalho)
    * @param {string} nomeCampo
@@ -324,15 +335,66 @@ var SheetService = (function() {
   }
 
   /**
-   * Atualiza uma linha inteira em uma aba.
+   * Atualiza uma linha inteira em uma aba, protegida por LockService.
    * @param {string} nomeAba
    * @param {number} numLinha - 1-based
    * @param {Array|Object} valores
    */
   function setLinha(nomeAba, numLinha, valores) {
     var linhaArray = _normalizarLinha(nomeAba, valores);
-    var sheet = getSheet(nomeAba);
-    sheet.getRange(numLinha, 1, 1, linhaArray.length).setValues([linhaArray]);
+    var lock = LockService.getDocumentLock();
+    lock.waitLock(10000);
+    try {
+      var sheet = getSheet(nomeAba);
+      sheet.getRange(numLinha, 1, 1, linhaArray.length).setValues([linhaArray]);
+    } finally {
+      lock.releaseLock();
+    }
+  }
+
+  /**
+   * Atualiza vários campos (por nome de cabeçalho) de uma mesma linha,
+   * protegida por um único LockService — todos os campos são gravados
+   * dentro da mesma seção crítica (se as colunas formarem um intervalo
+   * contíguo, num único setValues(); senão, célula a célula, mas ainda
+   * sob o mesmo lock). Usar em vez de vários setCelulaPorCampo() soltos
+   * quando os campos pertencem à mesma atualização lógica (ex.: saldo de
+   * um sócio ou de um lote) — evita que outra execução concorrente
+   * intercale uma escrita no meio da atualização.
+   * @param {string} nomeAba
+   * @param {number} numLinha - 1-based
+   * @param {Object} camposValores - {nomeCampo: valor}
+   * @returns {boolean} sucesso
+   */
+  function atualizarCamposLinha(nomeAba, numLinha, camposValores) {
+    var mapa = getMapaColunas(nomeAba);
+    var colunas = [];
+    Object.keys(camposValores).forEach(function(campo) {
+      var col = mapa[campo];
+      if (col) colunas.push({ col: col, valor: camposValores[campo] });
+    });
+    if (colunas.length === 0) return true;
+
+    colunas.sort(function(a, b) { return a.col - b.col; });
+    var colMin = colunas[0].col;
+    var colMax = colunas[colunas.length - 1].col;
+    var contiguo = (colMax - colMin + 1) === colunas.length;
+
+    var lock = LockService.getDocumentLock();
+    lock.waitLock(10000);
+    try {
+      var sheet = getSheet(nomeAba);
+      if (contiguo) {
+        var valoresAtuais = sheet.getRange(numLinha, colMin, 1, colMax - colMin + 1).getValues()[0];
+        colunas.forEach(function(c) { valoresAtuais[c.col - colMin] = c.valor; });
+        sheet.getRange(numLinha, colMin, 1, valoresAtuais.length).setValues([valoresAtuais]);
+      } else {
+        colunas.forEach(function(c) { sheet.getRange(numLinha, c.col).setValue(c.valor); });
+      }
+      return true;
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   // ============================================================
@@ -474,6 +536,28 @@ var SheetService = (function() {
     }
   }
 
+  /**
+   * Lê a aba Configuracoes uma única vez e agrupa por nome de grupo
+   * (coluna A). Usar em vez de chamar lerGrupoConfiguracoes() em loop
+   * para vários grupos — cada chamada individual relê a aba inteira.
+   * @returns {Object<string, Array<string>>}
+   */
+  function lerTodosGruposConfiguracoes() {
+    try {
+      var dados = getDados(CONFIG.ABAS.CONFIGURACOES);
+      var porGrupo = {};
+      dados.forEach(function(linha) {
+        if (!linha[1]) return;
+        var grupo = String(linha[0]);
+        if (!porGrupo[grupo]) porGrupo[grupo] = [];
+        porGrupo[grupo].push(String(linha[1]));
+      });
+      return porGrupo;
+    } catch (e) {
+      return {};
+    }
+  }
+
   // ============================================================
   // INTERFACE PÚBLICA
   // ============================================================
@@ -494,6 +578,7 @@ var SheetService = (function() {
     setCelula:                setCelula,
     setCelulaPorCampo:        setCelulaPorCampo,  // NOVO v2
     setLinha:                 setLinha,
+    atualizarCamposLinha:     atualizarCamposLinha,
     buscarPorCampo:           buscarPorCampo,
     buscarPrimeiroPorCampo:   buscarPrimeiroPorCampo,
     getUltimaLinha:           getUltimaLinha,
@@ -501,7 +586,8 @@ var SheetService = (function() {
     limparDados:              limparDados,
     lerConfigApp:             lerConfigApp,
     lerTodosConfigApp:        lerTodosConfigApp,
-    lerGrupoConfiguracoes:    lerGrupoConfiguracoes
+    lerGrupoConfiguracoes:    lerGrupoConfiguracoes,
+    lerTodosGruposConfiguracoes: lerTodosGruposConfiguracoes
   };
 
 })();

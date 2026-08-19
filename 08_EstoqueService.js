@@ -44,6 +44,21 @@ var EstoqueService = (function () {
   var NEGOCIO_POKEMON = 'Pokémon TCG';
 
   // ============================================================
+  // FUNÇÕES PRIVADAS — GRAVAÇÃO SEM LOCK PRÓPRIO
+  // ============================================================
+  // Usadas dentro do LockService.getScriptLock() de registrarAbertura.
+  // SheetService.appendLinha adquire seu próprio LockService.getDocumentLock()
+  // a cada chamada; usá-la aqui dentro do lock externo já ativo significa
+  // aquisições/liberações de lock extras e redundantes (o scriptLock
+  // externo já serializa a gravação inteira). Mesmo padrão de VendaService.
+  function _appendObjetoSemLock(nomeAba, objeto) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nomeAba);
+    var linhaArray = SheetService.objetoParaLinha(nomeAba, objeto);
+    sheet.appendRow(linhaArray);
+    return sheet.getLastRow();
+  }
+
+  // ============================================================
   // FUNÇÕES PRIVADAS — LEITURA DE LOTE
   // ============================================================
 
@@ -52,7 +67,8 @@ var EstoqueService = (function () {
    */
   function _buscarLotePorId(idLote) {
     if (Utils.eVazio(idLote)) return null;
-    return SheetService.buscarPrimeiroPorCampo(ABA_LOTES, C_LOTE.ID_LOTE, idLote);
+    var registro = SheetService.buscarPrimeiroPorCampo(ABA_LOTES, C_LOTE.ID_LOTE, idLote);
+    return registro ? registro.dados : null;
   }
 
   /**
@@ -155,13 +171,29 @@ var EstoqueService = (function () {
       mapa[cabecalhos[i]] = i + 1; // 1-based
     }
 
+    // Resolve os índices de coluna primeiro; se formarem um intervalo
+    // contíguo, grava tudo com um único setValues() em vez de um
+    // setValue() por campo (menos chamadas de API por atualização de lote).
+    var colunas = [];
     for (var campo in atualizacoes) {
       if (!atualizacoes.hasOwnProperty(campo)) continue;
       var nomeCampo = C_LOTE[campo] || campo;
       var colIdx    = mapa[nomeCampo];
-      if (colIdx) {
-        aba.getRange(linhaIdx, colIdx).setValue(atualizacoes[campo]);
-      }
+      if (colIdx) colunas.push({ col: colIdx, valor: atualizacoes[campo] });
+    }
+    if (colunas.length === 0) return true;
+
+    colunas.sort(function(a, b) { return a.col - b.col; });
+    var colMin = colunas[0].col;
+    var colMax = colunas[colunas.length - 1].col;
+    var contiguo = (colMax - colMin + 1) === colunas.length;
+
+    if (contiguo) {
+      var valoresAtuais = aba.getRange(linhaIdx, colMin, 1, colMax - colMin + 1).getValues()[0];
+      colunas.forEach(function(c) { valoresAtuais[c.col - colMin] = c.valor; });
+      aba.getRange(linhaIdx, colMin, 1, valoresAtuais.length).setValues([valoresAtuais]);
+    } else {
+      colunas.forEach(function(c) { aba.getRange(linhaIdx, c.col).setValue(c.valor); });
     }
     return true;
   }
@@ -240,7 +272,7 @@ var EstoqueService = (function () {
     }
 
     // Verificar status — não pode estar em hold
-    var statusLote = Utils.normalizar(loteOrigem[C_LOTE.STATUS] || '');
+    var statusLote = Utils.normalizar(loteOrigem[C_LOTE.STATUS] || '').toLowerCase();
     if (statusLote === 'hold') {
       return { sucesso: false, idAbertura: null, idLoteDestino: null, erro: 'Lote em Hold não pode ser aberto. Libere o hold antes.' };
     }
@@ -333,12 +365,28 @@ var EstoqueService = (function () {
     try {
       lock.waitLock(15000);
 
+      // Revalida saldo dentro do lock: outra operação concorrente pode ter
+      // consumido o mesmo lote entre a validação inicial e a aquisição do lock.
+      var loteOrigemAtual = _buscarLotePorId(idLoteOrigem);
+      if (!loteOrigemAtual) {
+        lock.releaseLock();
+        return { sucesso: false, idAbertura: null, idLoteDestino: null, erro: 'Lote de origem não encontrado: ' + idLoteOrigem };
+      }
+      qtdDisponivel = parseFloat(loteOrigemAtual[C_LOTE.QTD_DISPONIVEL] || 0);
+      if (qtdAbrir > qtdDisponivel) {
+        lock.releaseLock();
+        return {
+          sucesso: false, idAbertura: null, idLoteDestino: null,
+          erro: 'Quantidade a abrir (' + qtdAbrir + ') é maior que o saldo disponível (' + qtdDisponivel + ').'
+        };
+      }
+
       // 1. Gravar abertura
-      SheetService.appendLinha(ABA_ABERTURA, linhaAbertura);
+      _appendObjetoSemLock(ABA_ABERTURA, linhaAbertura);
 
       // 2. Atualizar lote origem (baixar saldo disponível, aumentar transformada)
       var novaQtdDisp   = Utils.arredondar(qtdDisponivel - qtdAbrir, 4);
-      var qtdTransf     = parseFloat(loteOrigem[C_LOTE.QTD_TRANSFORMADA] || 0);
+      var qtdTransf     = parseFloat(loteOrigemAtual[C_LOTE.QTD_TRANSFORMADA] || 0);
       var novaTransf    = Utils.arredondar(qtdTransf + qtdAbrir, 4);
       var novoStatusOrg = novaQtdDisp <= 0 ? 'Encerrado' : 'Parcial';
 
@@ -349,7 +397,7 @@ var EstoqueService = (function () {
       });
 
       // 3. Criar lote destino
-      SheetService.appendLinha(ABA_LOTES, linhaLoteDestino);
+      _appendObjetoSemLock(ABA_LOTES, linhaLoteDestino);
 
       // 4. Movimento de saída/transformação do produto origem
       // CORREÇÃO v2: passa idMovOrigem para garantir que o ID gravado = ID retornado

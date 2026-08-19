@@ -4,6 +4,83 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-08-18 (sessão 2 — revisão e correção de código)
+
+**Feito:** revisão completa dos 24 arquivos `.js` do repositório (via 5 sub-revisões
+paralelas) buscando bugs, eficiência e estética, seguida de correção de praticamente todos
+os achados diretamente no código local (ainda **não enviado ao Apps Script via `clasp
+push`** — só editado na pasta local clonada). Destaques por severidade:
+
+- **Crítico:**
+  - `08_EstoqueService.js`: `_buscarLotePorId` retornava o objeto errado
+    (`{linha, dados}` em vez de `dados`), deixando `registrarAbertura`/
+    `registrarAberturaPorProduto` inoperantes (a checagem "só Pokémon TCG pode ser
+    aberto" falhava sempre) — corrigido.
+  - Mesma função: comparação de status sem `.toLowerCase()` deixaria abrir lote em
+    Hold/Encerrado depois do fix acima — corrigido.
+  - Condição de corrida (TOCTOU) em `registrarAbertura` (Estoque) e `salvarVenda`
+    (Venda): saldo era lido/planejado antes do `LockService`, permitindo estoque
+    negativo com uso concorrente — agora a revalidação/planejamento roda dentro do
+    lock.
+  - `99_Testes_DadosDemo.js`: `gerarDadosDemo()`/`limparDadosDemo()` agora exigem
+    `Config_App.AMBIENTE === 'HML'` + confirmação explícita na UI antes de rodar —
+    antes só um comentário no cabeçalho do arquivo impedia rodar em produção por
+    engano.
+  - `00_Config.js`: `Socios`, `Aportes_Socios` e `Retiradas` adicionadas a
+    `ABAS_PROTEGIDAS` (guardavam saldo real dos sócios sem proteção nenhuma).
+- **Alto:** lock adicionado em `SheetService.setCelula/setCelulaPorCampo/setLinha`;
+  dedupe de duplicidade (Financeiro/PrecoReferencia) trocado de match por texto de log
+  para Módulo+Severidade; N+1 de leitura de planilha corrigido em
+  `PrecoReferenciaService` (preço vigente em lote), `UiService`/`ProdutoPortalService`
+  (metadados de mercado por produto) e `SociosService.reconhecerLucroDaVenda`
+  (participação calculada 1x por venda, não por item×sócio);
+  `converterDespesaEmAporte_` (despesa do bolso do sócio → aporte automático) agora é
+  chamada de fato quando `FinanceiroService.registrarDespesa` recebe
+  `pagoDoBolsoPorSocio`; `InstallService.reaplicarEstrutura()` não rebaixa mais
+  proteção PROD para "somente aviso".
+- **Médio:** `parsarData`/`formatarMoeda` (Utils) corrigidos para data inválida e
+  valor negativo; `_normalizar` unificado entre Financeiro/PrecoReferencia/UiService
+  via novo `Utils.normalizarChave`; `MAPA_ALIAS_ABA` redundante removido de
+  `ValidationService`; validação de Natureza da despesa contra
+  `CONFIG.LISTAS.NATUREZA_DESPESA`; `ID Requisição` adicionado a
+  `CONFIG.CAMPOS.APORTES_SOCIOS`/`RETIRADAS` (próximo "Criar Estrutura Base" cria a
+  coluna, ativando a proteção contra duplicidade); lock duplo aninhado removido de
+  `CompraService.salvarCompra`; texto residual "trade lock" removido do resumo
+  financeiro.
+- **Baixo/estética:** todos os `setValue()` célula-a-célula de saldo de sócio em
+  `SociosService` agora passam por `SheetService.atualizarCamposLinha` (novo helper,
+  protegido por lock, grava os campos relacionados numa única seção crítica) — essas
+  gravações **não tinham nenhum lock antes**; `LogService.limparLogsAntigos` agora
+  agrupa blocos contíguos num único `deleteRows()`; `BaseStyles.html`: adicionada a
+  classe `.hint` (usada em várias telas do Portal — cadastro, aporte, retirada, etc. —
+  mas nunca definida, then rendendo como texto sem estilo).
+- **Deixado como está (decisão consciente, não bug):** `obterPrecoVigente` ignora
+  `Estado/Condição` ao escolher o preço mais recente por produto — mudar isso é uma
+  decisão de regra de negócio nova, não um bug óbvio; não implementado sem confirmar
+  com o Kaique. `GovernanceService`: não foi implementado `removeEditors()` na
+  proteção PROD (comentário deixado explicando o motivo) — o comportamento exato de
+  quem mantém acesso de edição por padrão em `sheet.protect()` precisa ser confirmado
+  na planilha real antes de restringir editores, para não travar os sócios fora do
+  Portal.
+- Testes com assert real adicionados em `99_Testes_Venda.js`
+  (`testarVendaBloqueiaSaldoInsuficiente` e `testarVendaFIFOComMultiplosLotes` agora
+  lançam erro em vez de só logar) — os demais arquivos `99_Testes_*.js` continuam sem
+  assert automático (mudança maior, não feita nesta sessão).
+- Todos os arquivos editados passaram por `node --check` (validação de sintaxe) antes
+  de finalizar — sem erros.
+
+**Pendente:**
+- **`clasp push` ainda não rodado** — as correções estão só na pasta local clonada,
+  não no projeto Apps Script ao vivo nem na planilha HML. Rodar `clasp push` e depois
+  "Validar Estrutura Completa" antes de considerar a sessão fechada.
+- `Portal.html` não ganhou um checkbox/campo para acionar `pagoDoBolsoPorSocio` no
+  formulário de despesa — hoje só é utilizável via chamada direta ao backend.
+- Cobertura de teste automatizado (assert real) ainda baixa fora dos dois testes de
+  venda corrigidos — rateio de compra, participação societária, retirada máxima e
+  reserva mínima de caixa continuam sem assert.
+- Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — ainda não executados nesta
+  rodada.
+
 ## 2026-08-18
 
 **Feito:**

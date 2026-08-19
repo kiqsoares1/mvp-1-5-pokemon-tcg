@@ -232,7 +232,11 @@ var ProdutoMercadoService = (function () {
     obterMetadadosProduto: obterMetadadosProduto,
     obterFontePreferencial: obterFontePreferencial,
     listarMetadadosProdutosAtivos: listarMetadadosProdutosAtivos,
-    validarCabecalhosMetadados: validarCabecalhosMetadados
+    validarCabecalhosMetadados: validarCabecalhosMetadados,
+    // Versão pura (sem leitura de planilha) de _resolverMetadados, para
+    // quem já tem o objeto do produto em memória (evita releitura de
+    // Produtos_Ativos por produto em loops de listagem).
+    resolverMetadadosDoProduto: _resolverMetadados
   };
 
 })();

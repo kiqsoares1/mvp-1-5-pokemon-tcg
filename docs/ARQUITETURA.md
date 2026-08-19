@@ -31,7 +31,7 @@ do projeto Apps Script (todos os arquivos compartilham um único namespace globa
 14_LogService.gs            — logging estruturado (INFO/WARNING/ERROR/CRITICAL).
 16_GovernanceService.gs     — proteção de abas, ocultar abas auxiliares.
 17_InstallService.gs        — criarEstruturaBase() (idempotente, cria abas/colunas/seeds
-                              faltantes sem apagar dados) e instalarMVP() (valida e reporta,
+                              faltantes sem apagar dados) e instalar() (valida e reporta,
                               não cria estrutura).
 18_ProdutoMercadoService.gs — dados de mercado/preço por produto.
 19_ProdutoPortalService.gs  — endpoints usados pelo Portal para telas de produto.
@@ -50,7 +50,7 @@ appsscript.json              — manifesto do projeto Apps Script.
    (sem tocar em dados). **Não** semeia valores de listas em `Configuracoes` se a aba já
    tiver linhas — só semeia automaticamente quando a aba está totalmente vazia.
 2. **Instalação & Setup → "2. Instalar / Inicializar Sistema"** —
-   `InstallService.instalarMVP()`: roda `ValidationService.validarSilencioso()` (só
+   `InstallService.instalar()`: roda `ValidationService.validarSilencioso()` (só
    reporta problemas, não corrige), aplica proteções de abas, oculta abas auxiliares.
 3. **Validação → "Validar Estrutura Completa"** — roda a validação completa e mostra um
    diálogo com checklist (abas, cabeçalhos, Config_App, grupos de Configuracoes).

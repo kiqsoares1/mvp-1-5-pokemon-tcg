@@ -68,6 +68,7 @@ var Utils = (function() {
    * @returns {number} Número de dias (inteiro)
    */
   function diasEntre(dataInicio, dataFim) {
+    if (!dataInicio) return null;
     if (!dataFim) dataFim = agora();
     var diff = dataFim.getTime() - dataInicio.getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -94,12 +95,20 @@ var Utils = (function() {
     if (!str || typeof str !== 'string') return null;
     var partes = str.trim().split('/');
     if (partes.length !== 3) return null;
+    var dia = parseInt(partes[0], 10);
+    var mes = parseInt(partes[1], 10);
+    var ano = parseInt(partes[2], 10);
+    if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return null;
     try {
-      return new Date(
-        parseInt(partes[2]),
-        parseInt(partes[1]) - 1,
-        parseInt(partes[0])
-      );
+      var data = new Date(ano, mes - 1, dia);
+      // new Date(...) com componentes fora do intervalo válido "rola" para
+      // o mês/dia seguinte em vez de lançar erro (ex.: 31/13/2026 vira uma
+      // data de 2027) — confere que os componentes voltam intactos.
+      if (isNaN(data.getTime()) ||
+          data.getFullYear() !== ano || data.getMonth() !== mes - 1 || data.getDate() !== dia) {
+        return null;
+      }
+      return data;
     } catch (e) {
       return null;
     }
@@ -117,6 +126,23 @@ var Utils = (function() {
   function normalizar(valor) {
     if (valor === null || valor === undefined) return '';
     return String(valor).trim().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Normaliza uma string para comparação: trim, minúsculas e sem acento.
+   * Usado para comparar campos livres (negócio, categoria, etc.) sem que
+   * uma diferença de acentuação faça um filtro bater silenciosamente em
+   * um módulo e falhar em outro — vários serviços tinham cada um sua
+   * própria versão local desta função, algumas removendo acento e outras
+   * não, o que causava esse tipo de inconsistência.
+   * @param {*} valor
+   * @returns {string}
+   */
+  function normalizarChave(valor) {
+    return normalizar(valor)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
   }
 
   /**
@@ -195,7 +221,9 @@ var Utils = (function() {
    */
   function formatarMoeda(valor) {
     if (isNaN(valor) || valor === null || valor === undefined) return 'R$ 0,00';
-    return 'R$ ' + Number(valor).toFixed(2)
+    var numero = Number(valor);
+    var sinal = numero < 0 ? '-' : '';
+    return sinal + 'R$ ' + Math.abs(numero).toFixed(2)
       .replace('.', ',')
       .replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
@@ -349,6 +377,7 @@ var Utils = (function() {
     adicionarDias:      adicionarDias,
     parsarData:         parsarData,
     normalizar:         normalizar,
+    normalizarChave:    normalizarChave,
     maiusculo:          maiusculo,
     minusculo:          minusculo,
     truncar:            truncar,

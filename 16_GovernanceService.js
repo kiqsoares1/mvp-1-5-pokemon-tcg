@@ -79,10 +79,14 @@ var GovernanceService = (function() {
         );
 
         if (modoProducao) {
-          // PROD: proteção real — bloqueia edição
+          // PROD: proteção real — bloqueia edição manual via UI para quem
+          // não estiver listado como editor da proteção. NÃO chama
+          // removeEditors(): o comportamento exato de quem fica com acesso
+          // de edição por padrão em sheet.protect() precisa ser confirmado
+          // na planilha real antes de restringir editores, para não travar
+          // acidentalmente os sócios fora do owner (eles usam o Portal, que
+          // grava via Apps Script, não via edição direta na UI).
           protecao.setWarningOnly(false);
-          // Mantém apenas o usuário ativo como editor autorizado
-          // (outros editores do arquivo mantidos pelo Google Sheets nativamente)
         } else {
           // HML: apenas aviso ao tentar editar
           protecao.setWarningOnly(true);

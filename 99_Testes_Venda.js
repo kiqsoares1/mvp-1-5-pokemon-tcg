@@ -95,6 +95,13 @@ function testarVendaBloqueiaSaldoInsuficiente() {
   var preco = Math.max(parseFloat(lote[C.CUSTO_UNIT] || 0) + 10, 1);
   var res = VendaService.salvarVenda(_testeVendaPayload_(lote, 999999, preco));
   Logger.log(JSON.stringify(res));
+  // Assert real: com pré-condição presente (lote disponível encontrado
+  // acima), a venda de 999999 unidades TEM que ser bloqueada. Sem este
+  // assert, um bug que removesse a validação de estoque negativo passaria
+  // despercebido — o resultado ficava só num log que ninguém é obrigado a ler.
+  if (res.sucesso === true) {
+    throw new Error('FALHA DE REGRA CRÍTICA: venda de 999999 unidades foi aceita (deveria bloquear estoque insuficiente). ' + JSON.stringify(res));
+  }
   return res;
 }
 
@@ -124,11 +131,35 @@ function testarVendaFIFOComMultiplosLotes() {
     return da - db;
   });
 
+  var idLoteMaisAntigo = escolhido[0][C.ID_LOTE];
+  var idLoteSeguinte = escolhido[1][C.ID_LOTE];
   var qtd1 = parseFloat(escolhido[0][C.QTD_DISPONIVEL] || 0);
   var qtdVenda = qtd1 + 1;
   var preco = Math.max(parseFloat(escolhido[0][C.CUSTO_UNIT] || 0) + 10, 1);
   var res = VendaService.salvarVenda(_testeVendaPayload_(escolhido[0], qtdVenda, preco));
   Logger.log(JSON.stringify(res));
+  if (res.sucesso !== true) {
+    throw new Error('Venda deveria ter sido aceita (saldo suficiente somando os 2 lotes): ' + JSON.stringify(res));
+  }
+
+  // Assert real de FIFO: confere em Lotes_Estoque que o lote mais antigo
+  // ficou zerado/Encerrado (consumido primeiro) e que o lote seguinte
+  // absorveu só a unidade excedente — sem isso, o teste "passava" mesmo
+  // que a venda tivesse consumido o lote errado.
+  var loteMaisAntigoDepois = SheetService.buscarPrimeiroPorCampo(CONFIG.ABAS.LOTES_ESTOQUE, C.ID_LOTE, idLoteMaisAntigo);
+  var loteSeguinteDepois = SheetService.buscarPrimeiroPorCampo(CONFIG.ABAS.LOTES_ESTOQUE, C.ID_LOTE, idLoteSeguinte);
+  var qtdDispMaisAntigoDepois = parseFloat(loteMaisAntigoDepois.dados[C.QTD_DISPONIVEL] || 0);
+  var qtdDispSeguinteDepois = parseFloat(loteSeguinteDepois.dados[C.QTD_DISPONIVEL] || 0);
+  var qtdDispSeguinteAntes = parseFloat(escolhido[1][C.QTD_DISPONIVEL] || 0);
+
+  if (qtdDispMaisAntigoDepois !== 0) {
+    throw new Error('FALHA DE FIFO: lote mais antigo (' + idLoteMaisAntigo + ') deveria ter ficado com saldo 0, mas ficou com ' + qtdDispMaisAntigoDepois + '.');
+  }
+  if (qtdDispSeguinteDepois !== Utils.arredondar(qtdDispSeguinteAntes - 1, 4)) {
+    throw new Error('FALHA DE FIFO: lote seguinte (' + idLoteSeguinte + ') deveria ter absorvido só 1 unidade excedente. Esperado ' +
+      Utils.arredondar(qtdDispSeguinteAntes - 1, 4) + ', encontrado ' + qtdDispSeguinteDepois + '.');
+  }
+
   return res;
 }
 

@@ -88,8 +88,10 @@ var ProdutoPortalService = (function () {
       var produtos = SheetService.getDadosComoObjetos(ABA)
         .filter(function(p) { return _produtoAtivo(p) && _filtrarNegocio(p, negocio); })
         .map(function(p) {
-          var meta = ProdutoMercadoService.obterMetadadosProduto(p[C_PROD.ID_PRODUTO]);
-          var m = meta && meta.metadados ? meta.metadados : {};
+          // Usa o objeto do produto já carregado em memória (resolvedor puro,
+          // sem I/O) em vez de obterMetadadosProduto(id), que releria
+          // Produtos_Ativos inteira a cada produto do loop (O(N²)).
+          var m = ProdutoMercadoService.resolverMetadadosDoProduto(p) || {};
           return {
             idProduto: p[C_PROD.ID_PRODUTO],
             negocio: p[C_PROD.NEGOCIO],

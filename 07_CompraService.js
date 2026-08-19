@@ -382,6 +382,31 @@ var CompraService = (function () {
    * }
    * @returns {Object} { sucesso, idCompra, idsLotes[], idsMov[], erro, detalhes }
    */
+
+  // Gravação sem lock próprio — usadas dentro do LockService.getScriptLock()
+  // de salvarCompra. SheetService.appendLinha/appendLinhas adquirem seu
+  // próprio LockService.getDocumentLock() a cada chamada; usá-las aqui
+  // dentro do lock externo já ativo significa 4 aquisições/liberações de
+  // lock extras e redundantes por compra (o scriptLock externo já
+  // serializa a gravação inteira). Mesmo padrão já usado em VendaService.
+  function _appendObjetoSemLock(nomeAba, objeto) {
+    var sheet = SheetService.getSheet(nomeAba);
+    var linhaArray = SheetService.objetoParaLinha(nomeAba, objeto);
+    sheet.appendRow(linhaArray);
+    return sheet.getLastRow();
+  }
+
+  function _appendObjetosSemLock(nomeAba, objetos) {
+    if (!objetos || objetos.length === 0) return 0;
+    var sheet = SheetService.getSheet(nomeAba);
+    var linhas = objetos.map(function(obj) {
+      return SheetService.objetoParaLinha(nomeAba, obj);
+    });
+    var ultimaLinha = sheet.getLastRow();
+    sheet.getRange(ultimaLinha + 1, 1, linhas.length, linhas[0].length).setValues(linhas);
+    return sheet.getLastRow();
+  }
+
   function salvarCompra(payload) {
     var idRequisicao = payload.idRequisicao || Utils.uuid();
 
@@ -494,10 +519,10 @@ var CompraService = (function () {
       lock.waitLock(15000);
 
       // Gravar na ordem: Compras → Itens_Compra → Lotes_Estoque → Movimentos_Estoque
-      SheetService.appendLinha(ABA_COMPRAS, linhaCompra);
-      SheetService.appendLinhas(ABA_ITENS,      linhasItens);
-      SheetService.appendLinhas(ABA_LOTES,      linhasLotes);
-      SheetService.appendLinhas(ABA_MOVIMENTOS, linhasMov);
+      _appendObjetoSemLock(ABA_COMPRAS, linhaCompra);
+      _appendObjetosSemLock(ABA_ITENS,      linhasItens);
+      _appendObjetosSemLock(ABA_LOTES,      linhasLotes);
+      _appendObjetosSemLock(ABA_MOVIMENTOS, linhasMov);
 
       lock.releaseLock();
 

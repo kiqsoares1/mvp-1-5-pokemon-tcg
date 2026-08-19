@@ -9,8 +9,8 @@
  * REGRA: Nenhum outro módulo deve usar strings literais de
  * nomes de abas ou campos. Sempre referenciar via CONFIG.
  *
- * Versão: 1.6.0
- * Ambiente: HML
+ * Versão/ambiente atuais: ver CONFIG.VERSAO / CONFIG.AMBIENTE abaixo
+ * (fonte única — não duplicar o valor aqui no comentário).
  *
  * NOTA (migração v1.6.0): CS Skins foi removido do escopo do
  * projeto. Negócio, Trade Lock e fontes de preço específicas
@@ -384,7 +384,8 @@
  OBSERVACAO:           'Observação',
  ID_CAPITAL_VINCULADO: 'ID Capital Vinculado',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ ID_REQUISICAO:        'ID Requisição'
  },
 
  HISTORICO_PARTICIPACOES: {
@@ -413,7 +414,8 @@
  STATUS:               'Status',
  OBSERVACAO:           'Observação',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ ID_REQUISICAO:        'ID Requisição'
  },
 
  LUCRO_POR_ITEM_SOCIO: {
@@ -525,7 +527,10 @@
  'Erros_Sistema',
  'Historico_Participacoes',
  'Lucro_Por_Item_Socio',
- 'Resumo_Socios'
+ 'Resumo_Socios',
+ 'Socios',
+ 'Aportes_Socios',
+ 'Retiradas'
  ],
 
  // ============================================================

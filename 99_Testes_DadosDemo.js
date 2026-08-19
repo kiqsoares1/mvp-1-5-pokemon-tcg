@@ -28,6 +28,25 @@ function _demoData_(diasAtras) {
   return Utils.formatarData(Utils.adicionarDias(new Date(), -diasAtras));
 }
 
+/**
+ * Trava de segurança: bloqueia execução fora de HML e sem confirmação
+ * explícita do usuário. Sem isso, gerarDadosDemo()/limparDadosDemo() podem
+ * gravar aporte fictício ou apagar o livro financeiro real dos sócios se
+ * rodados por engano numa planilha de produção.
+ */
+function _demoExigirAmbienteHml_(tituloConfirmacao, mensagemConfirmacao) {
+  var ambiente = SheetService.lerConfigApp('AMBIENTE') || CONFIG.AMBIENTE;
+  if (String(ambiente).toUpperCase() !== 'HML') {
+    throw new Error('Bloqueado: ambiente atual é "' + ambiente + '", não HML. ' +
+      'Esta função só pode rodar em planilha de homologação.');
+  }
+  var ui = SpreadsheetApp.getUi();
+  var resp = ui.alert(tituloConfirmacao, mensagemConfirmacao, ui.ButtonSet.YES_NO);
+  if (resp !== ui.Button.YES) {
+    throw new Error('Cancelado pelo usuário.');
+  }
+}
+
 function _demoLog_(rotulo, resultado) {
   var ok = resultado && resultado.sucesso;
   Logger.log((ok ? '✅ ' : '❌ ') + rotulo + ': ' + JSON.stringify(resultado));
@@ -60,6 +79,10 @@ function gerarDadosDemo() {
   var resumo = { socios: [], produtos: {}, compras: [], aberturas: [], vendas: [], despesas: [], retiradas: [], erros: [] };
 
   try {
+    _demoExigirAmbienteHml_('Gerar dados demo',
+      'Isso vai gravar sócios, aportes (R$10.000 cada), compras, vendas, despesas e ' +
+      'retiradas fictícias nesta planilha. Confirmar apenas se esta é a planilha de homologação (HML)?');
+
     // ------------------------------------------------------------
     // 1. Sócios + aportes (R$10.000 cada — participação ~33% cada)
     // ------------------------------------------------------------
@@ -265,6 +288,11 @@ function gerarDadosDemo() {
  * ------------------------------------------------------------
  */
 function limparDadosDemo() {
+  _demoExigirAmbienteHml_('Limpar dados demo',
+    'Isso vai APAGAR todos os dados de Sócios, Aportes, Participações, Retiradas, Lucro por ' +
+    'Sócio, Produtos, Compras, Vendas, Estoque e Despesas desta planilha. Esta ação não pode ' +
+    'ser desfeita. Confirmar apenas se esta é a planilha de homologação (HML)?');
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var abas = [
     'Socios', 'Aportes_Socios', 'Historico_Participacoes', 'Retiradas',

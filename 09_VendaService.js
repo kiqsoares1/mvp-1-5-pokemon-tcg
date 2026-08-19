@@ -420,11 +420,6 @@ var VendaService = (function () {
     var cabecalho = payload.cabecalho || {};
     var itens = payload.itens || [];
 
-    if (_idRequisicaoJaProcessado(idRequisicao)) {
-      return _erro('Esta venda já foi processada anteriormente. Código: ' + idRequisicao,
-        [], idRequisicao, 'bloqueioDuplicidade');
-    }
-
     LogService.info('VendaService', 'salvarVenda', 'Iniciando venda. Req: ' + idRequisicao, idRequisicao);
 
     var valCab = _validarCabecalho(cabecalho);
@@ -433,35 +428,45 @@ var VendaService = (function () {
     var valItens = _validarItens(itens, cabecalho.negocio);
     if (!valItens.valido) return _erro(valItens.erros.join(' | '), valItens.erros, idRequisicao, 'validarItens');
 
-    var plano = _planejarFIFO(valItens.itens, idRequisicao);
-    if (!plano.valido) return _erro(plano.erros.join(' | '), plano.erros, idRequisicao, 'planejarFIFO');
-
-    var totais = _totais(cabecalho, plano.alocacoes);
-    if (totais.valorLiquido < 0) {
-      return _erro('Taxas, frete e desconto excedem a receita bruta da venda.', [], idRequisicao, 'validarTotais');
-    }
-
-    var idVenda = IdService.gerarIdVenda();
-    var idsItens = [];
-    var idsMov = [];
-    var linhasItens = [];
-    var linhasMov = [];
-
-    for (var i = 0; i < plano.alocacoes.length; i++) {
-      var idItem = IdService.gerarIdItemVenda();
-      var idMov = IdService.gerarIdMovimento();
-      idsItens.push(idItem);
-      idsMov.push(idMov);
-      linhasItens.push(_montarItemVenda(idItem, idVenda, plano.alocacoes[i]));
-      linhasMov.push(_montarMovimento(idMov, cabecalho.dataVenda, idItem, plano.alocacoes[i]));
-    }
-
-    var linhaVenda = _montarVenda(idVenda, cabecalho, totais, idRequisicao);
-    var updatesLotes = _montarAtualizacoesLotes(plano.alocacoes);
-
+    // A checagem de duplicidade e o planejamento FIFO (que decide quanto
+    // consumir de cada lote) rodam DENTRO do lock: se ficassem antes, duas
+    // vendas concorrentes do mesmo produto poderiam planejar a partir do
+    // mesmo saldo e a segunda gravaria por cima com dado desatualizado,
+    // permitindo vender mais do que o estoque real (`return` dentro do
+    // `try` ainda passa pelo `finally`, então o lock é sempre liberado).
+    var idVenda, idsItens = [], idsMov = [], totais, plano;
     var lock = LockService.getDocumentLock();
     try {
       lock.waitLock(15000);
+
+      if (_idRequisicaoJaProcessado(idRequisicao)) {
+        return _erro('Esta venda já foi processada anteriormente. Código: ' + idRequisicao,
+          [], idRequisicao, 'bloqueioDuplicidade');
+      }
+
+      plano = _planejarFIFO(valItens.itens, idRequisicao);
+      if (!plano.valido) return _erro(plano.erros.join(' | '), plano.erros, idRequisicao, 'planejarFIFO');
+
+      totais = _totais(cabecalho, plano.alocacoes);
+      if (totais.valorLiquido < 0) {
+        return _erro('Taxas, frete e desconto excedem a receita bruta da venda.', [], idRequisicao, 'validarTotais');
+      }
+
+      idVenda = IdService.gerarIdVenda();
+      var linhasItens = [];
+      var linhasMov = [];
+
+      for (var i = 0; i < plano.alocacoes.length; i++) {
+        var idItem = IdService.gerarIdItemVenda();
+        var idMov = IdService.gerarIdMovimento();
+        idsItens.push(idItem);
+        idsMov.push(idMov);
+        linhasItens.push(_montarItemVenda(idItem, idVenda, plano.alocacoes[i]));
+        linhasMov.push(_montarMovimento(idMov, cabecalho.dataVenda, idItem, plano.alocacoes[i]));
+      }
+
+      var linhaVenda = _montarVenda(idVenda, cabecalho, totais, idRequisicao);
+      var updatesLotes = _montarAtualizacoesLotes(plano.alocacoes);
 
       _appendObjetoSemLock(ABA_VENDAS, linhaVenda);
       _appendObjetosSemLock(ABA_ITENS, linhasItens);

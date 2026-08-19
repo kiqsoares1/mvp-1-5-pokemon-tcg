@@ -71,7 +71,7 @@
  }
 
  function _normalizar(valor) {
- return String(valor || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+ return Utils.normalizarChave(valor);
  }
 
  function _filtrarNegocio(obj, campo, negocio) {
@@ -126,8 +126,10 @@
  var produtos = _lerObjetos(CONFIG.ABAS.PRODUTOS_ATIVOS)
  .filter(function(p) { return _produtoAtivo(p) && _filtrarNegocio(p, C_PROD.NEGOCIO, negocio); })
  .map(function(p) {
+ // Resolvedor puro (sem I/O) usando o produto já carregado em memória —
+ // evita reler Produtos_Ativos inteira por produto do loop.
  var meta = {};
- try { meta = ProdutoMercadoService.obterMetadadosProduto(p[C_PROD.ID_PRODUTO]).metadados || {}; } catch (_) {}
+ try { meta = ProdutoMercadoService.resolverMetadadosDoProduto(p) || {}; } catch (_) {}
  return {
  idProduto: p[C_PROD.ID_PRODUTO],
  nomeProduto: p[C_PROD.NOME_PRODUTO],
@@ -148,12 +150,21 @@
  function uiConsultarEstoque(filtros) {
  try {
  filtros = filtros || {};
- var lotes = _lerObjetos(CONFIG.ABAS.LOTES_ESTOQUE)
+ var lotesFiltrados = _lerObjetos(CONFIG.ABAS.LOTES_ESTOQUE)
  .filter(function(l) { return _filtrarNegocio(l, C_LOTE.NEGOCIO, filtros.negocio); })
  .filter(function(l) { return !filtros.statusLote || String(l[C_LOTE.STATUS]) === filtros.statusLote; })
- .filter(function(l) { return !filtros.idProduto || String(l[C_LOTE.ID_PRODUTO]) === String(filtros.idProduto); })
- .map(function(l) {
- var preco = _precoVigente(l[C_LOTE.ID_PRODUTO]);
+ .filter(function(l) { return !filtros.idProduto || String(l[C_LOTE.ID_PRODUTO]) === String(filtros.idProduto); });
+
+ // Busca o preço vigente de todos os produtos envolvidos de uma vez só
+ // (uma leitura de Referencias_Preco/Config_App), em vez de reler a
+ // aba inteira uma vez por lote — Home/Dashboard chamam esta função a
+ // cada carregamento de tela.
+ var idsProdutos = lotesFiltrados.map(function(l) { return l[C_LOTE.ID_PRODUTO]; });
+ var precosPorProduto = {};
+ try { precosPorProduto = PrecoReferenciaService.obterPrecosVigentesEmLote(idsProdutos); } catch (_) {}
+
+ var lotes = lotesFiltrados.map(function(l) {
+ var preco = precosPorProduto[String(l[C_LOTE.ID_PRODUTO])] || _precoVigente(l[C_LOTE.ID_PRODUTO]);
  return {
  idLote: l[C_LOTE.ID_LOTE],
  idProduto: l[C_LOTE.ID_PRODUTO],

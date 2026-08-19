@@ -29,11 +29,7 @@ var PrecoReferenciaService = (function () {
   }
 
   function _normalizar(valor) {
-    return String(valor || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+    return Utils.normalizarChave(valor);
   }
 
   function _normalizarChave(campo) {
@@ -177,11 +173,16 @@ var PrecoReferenciaService = (function () {
     }
 
     try {
+      // Fallback só usado quando Referencias_Preco não tem coluna "ID
+      // Requisição" (ou a busca acima falhou tecnicamente). Checa
+      // Módulo+Severidade em vez de um trecho fixo da mensagem de log —
+      // texto de mensagem pode mudar em qualquer revisão futura e
+      // quebraria essa proteção silenciosamente.
       var logs = SheetService.buscarPorCampo(ABA_LOGS, C_LOG.REF_ID, idRequisicao);
       for (var i = 0; i < logs.length; i++) {
         var dados = logs[i].dados;
         if (String(dados[C_LOG.MODULO]) === 'PrecoReferenciaService' &&
-            String(dados[C_LOG.MENSAGEM]).indexOf('Preco registrado') !== -1) {
+            String(dados[C_LOG.SEVERIDADE]) === 'INFO') {
           return true;
         }
       }
@@ -202,17 +203,31 @@ var PrecoReferenciaService = (function () {
     }
   }
 
-  function classificarStatusPreco(dataReferencia) {
+  /**
+   * @param {string} dataReferencia
+   * @param {number} [diasAtualizadoParam] - se informado, pula a leitura de
+   *   Config_App (uso interno para listagens em lote, ver _diasParametrosPadrao_).
+   * @param {number} [diasAtencaoParam]
+   */
+  function classificarStatusPreco(dataReferencia, diasAtualizadoParam, diasAtencaoParam) {
     if (Utils.eVazio(dataReferencia)) return 'Sem Preço';
     var dias = _diasDesde(dataReferencia);
     if (dias === null || isNaN(dias)) return 'Sem Preço';
 
-    var diasAtualizado = _diasParametro('PRECO_DIAS_ATUALIZADO', 30);
-    var diasAtencao = _diasParametro('PRECO_DIAS_ATENCAO', 60);
+    var diasAtualizado = diasAtualizadoParam !== undefined ? diasAtualizadoParam : _diasParametro('PRECO_DIAS_ATUALIZADO', 30);
+    var diasAtencao = diasAtencaoParam !== undefined ? diasAtencaoParam : _diasParametro('PRECO_DIAS_ATENCAO', 60);
 
     if (dias <= diasAtualizado) return 'Atualizado';
     if (dias <= diasAtencao) return 'Atenção';
     return 'Vencido';
+  }
+
+  /** Lê os dois parâmetros de dias de Config_App uma única vez. */
+  function _diasParametrosPadrao_() {
+    return {
+      atualizado: _diasParametro('PRECO_DIAS_ATUALIZADO', 30),
+      atencao: _diasParametro('PRECO_DIAS_ATENCAO', 60)
+    };
   }
 
   function registrarPrecoReferencia(payload) {
@@ -252,6 +267,10 @@ var PrecoReferenciaService = (function () {
     var status = classificarStatusPreco(dataReferencia);
     var dias = _diasDesde(dataReferencia);
     var nomeProduto = _lerCampo(produto, [C_PROD.NOME_PRODUTO, 'Produto', 'Nome Produto']);
+    // Guardada para uso futuro em deduplicação (mesmo produto+condição+
+    // fonte+data) — hoje só é gravada, ainda não é lida/consultada em
+    // nenhum lugar do sistema. Não implementar checagem de duplicidade
+    // baseada nela sem confirmar a regra com o dono do produto primeiro.
     var chavePreco = [payload.idProduto, payload.estadoCondicao || '', payload.fonte || '', dataReferencia].join('|');
 
     var linha = {};
@@ -291,12 +310,9 @@ var PrecoReferenciaService = (function () {
     }
   }
 
-  function _refsValidasProduto(idProduto) {
-    var refs = SheetService.getDadosComoObjetos(ABA_REF);
+  function _ordenarRefsValidas_(refsDoProduto) {
     var validas = [];
-
-    refs.forEach(function(r) {
-      if (String(r[C_REF.ID_PRODUTO]) !== String(idProduto)) return;
+    (refsDoProduto || []).forEach(function(r) {
       var preco = _numero(r[C_REF.PRECO_UNIT]);
       var dataRef = _data(r[C_REF.DATA_REF]);
       if (preco <= 0 || !dataRef) return;
@@ -312,8 +328,43 @@ var PrecoReferenciaService = (function () {
     return validas;
   }
 
-  function obterPrecoVigente(idProduto) {
-    var validas = _refsValidasProduto(idProduto);
+  function _refsValidasProduto(idProduto) {
+    var refs = SheetService.getDadosComoObjetos(ABA_REF);
+    var doProduto = refs.filter(function(r) { return String(r[C_REF.ID_PRODUTO]) === String(idProduto); });
+    return _ordenarRefsValidas_(doProduto);
+  }
+
+  /**
+   * Lê Referencias_Preco uma única vez e agrupa por ID Produto — usado
+   * por listagens que chamam obterPrecoVigente para vários produtos
+   * (evita reler a aba inteira uma vez por produto).
+   */
+  function _agruparRefsPorProduto_() {
+    var refs = SheetService.getDadosComoObjetos(ABA_REF);
+    var porProduto = {};
+    refs.forEach(function(r) {
+      var id = String(r[C_REF.ID_PRODUTO]);
+      if (!porProduto[id]) porProduto[id] = [];
+      porProduto[id].push(r);
+    });
+    var validasPorProduto = {};
+    Object.keys(porProduto).forEach(function(id) {
+      validasPorProduto[id] = _ordenarRefsValidas_(porProduto[id]);
+    });
+    return validasPorProduto;
+  }
+
+  /**
+   * @param {string} idProduto
+   * @param {Array} [refsPreCarregadas] - se informado (já ordenadas por
+   *   _ordenarRefsValidas_/_agruparRefsPorProduto_), pula a releitura de
+   *   Referencias_Preco. Uso interno para listagens em lote.
+   * @param {{atualizado:number, atencao:number}} [diasPreCarregados] - se
+   *   informado, pula a releitura de Config_App. Uso interno para
+   *   listagens em lote.
+   */
+  function obterPrecoVigente(idProduto, refsPreCarregadas, diasPreCarregados) {
+    var validas = refsPreCarregadas || _refsValidasProduto(idProduto);
     if (validas.length === 0) {
       return _anexarMetadadosPreco({
         idProduto: idProduto,
@@ -328,13 +379,14 @@ var PrecoReferenciaService = (function () {
 
     var ref = validas[0].dados;
     var dataReferencia = ref[C_REF.DATA_REF];
+    var dias = diasPreCarregados || {};
     return _anexarMetadadosPreco({
       idProduto: idProduto,
       idReferencia: ref[C_REF.ID_REF],
       precoUnitario: _numero(ref[C_REF.PRECO_UNIT]),
       fonte: ref[C_REF.FONTE] || '',
       dataReferencia: dataReferencia,
-      statusPreco: classificarStatusPreco(dataReferencia),
+      statusPreco: classificarStatusPreco(dataReferencia, dias.atualizado, dias.atencao),
       diasDesdeAtualizacao: _diasDesde(dataReferencia),
       observacao: _lerCampo(ref, ['Observação', 'Observacao', 'observacao'])
     }, idProduto);
@@ -429,9 +481,11 @@ var PrecoReferenciaService = (function () {
 
   function listarProdutosSemPreco() {
     var resultado = [];
+    var refsPorProduto = _agruparRefsPorProduto_();
+    var dias = _diasParametrosPadrao_();
     _produtosAtivos().forEach(function(p) {
       var idProduto = p[C_PROD.ID_PRODUTO];
-      var preco = obterPrecoVigente(idProduto);
+      var preco = obterPrecoVigente(idProduto, refsPorProduto[String(idProduto)] || [], dias);
       if (preco.statusPreco === 'Sem Preço') {
         resultado.push({
           idProduto: idProduto,
@@ -450,9 +504,11 @@ var PrecoReferenciaService = (function () {
 
   function listarProdutosComPrecoVencido() {
     var resultado = [];
+    var refsPorProduto = _agruparRefsPorProduto_();
+    var dias = _diasParametrosPadrao_();
     _produtosAtivos().forEach(function(p) {
       var idProduto = p[C_PROD.ID_PRODUTO];
-      var preco = obterPrecoVigente(idProduto);
+      var preco = obterPrecoVigente(idProduto, refsPorProduto[String(idProduto)] || [], dias);
       if (preco.statusPreco === 'Vencido') {
         resultado.push({
           idProduto: idProduto,
@@ -473,11 +529,32 @@ var PrecoReferenciaService = (function () {
     return resultado;
   }
 
+  /**
+   * Retorna um mapa {idProduto: precoVigente} para vários produtos de
+   * uma vez, lendo Referencias_Preco e Config_App uma única vez em vez
+   * de por produto. Uso recomendado em telas do Portal que exibem preço
+   * vigente para uma lista de lotes/produtos (Dashboard, Estoque).
+   * @param {Array<string>} idsProdutos
+   * @returns {Object<string, Object>}
+   */
+  function obterPrecosVigentesEmLote(idsProdutos) {
+    var refsPorProduto = _agruparRefsPorProduto_();
+    var dias = _diasParametrosPadrao_();
+    var mapa = {};
+    (idsProdutos || []).forEach(function(idProduto) {
+      var chave = String(idProduto);
+      if (mapa.hasOwnProperty(chave)) return;
+      mapa[chave] = obterPrecoVigente(idProduto, refsPorProduto[chave] || [], dias);
+    });
+    return mapa;
+  }
+
   return {
     registrarPrecoReferencia: registrarPrecoReferencia,
     atualizarValorMercadoProduto: atualizarValorMercadoProduto,
     classificarStatusPreco: classificarStatusPreco,
     obterPrecoVigente: obterPrecoVigente,
+    obterPrecosVigentesEmLote: obterPrecosVigentesEmLote,
     listarProdutosSemPreco: listarProdutosSemPreco,
     listarProdutosComPrecoVencido: listarProdutosComPrecoVencido
   };
