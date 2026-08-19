@@ -297,13 +297,14 @@ var GovernanceService = (function() {
   // INTERFACE PÚBLICA
   // ============================================================
   return {
-    aplicarProtecoes:       aplicarProtecoes,
-    removerProtecoes:       removerProtecoes,
-    ocultarAbasAuxiliares:  ocultarAbasAuxiliares,
-    exibirAbasAuxiliares:   exibirAbasAuxiliares,
-    prepararAmbienteHML:    prepararAmbienteHML,
-    registrarPendencias:    registrarPendencias,
-    verificarStatus:        verificarStatus
+    aplicarProtecoes:          aplicarProtecoes,
+    aplicarProtecoesSilencioso: aplicarProtecoesSilencioso,
+    removerProtecoes:          removerProtecoes,
+    ocultarAbasAuxiliares:     ocultarAbasAuxiliares,
+    exibirAbasAuxiliares:      exibirAbasAuxiliares,
+    prepararAmbienteHML:       prepararAmbienteHML,
+    registrarPendencias:       registrarPendencias,
+    verificarStatus:           verificarStatus
   };
 
 })();
