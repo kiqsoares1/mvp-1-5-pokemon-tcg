@@ -1,7 +1,6 @@
 # MVP 1.5 — Pokémon TCG + Módulo Societário
 
-Sistema de gestão em Google Sheets + Google Apps Script para os sócios Kaique, Samuel e
-Lucas. Ver a pasta `docs/` para todo o contexto do projeto:
+Sistema de gestão em Google Sheets + Google Apps Script para os sócios. Ver a pasta `docs/` para todo o contexto do projeto:
 
 - [`docs/CONTEXTO.md`](docs/CONTEXTO.md) — visão geral, links, stack.
 - [`docs/REGRAS_DE_NEGOCIO.md`](docs/REGRAS_DE_NEGOCIO.md) — regras de negócio (produtos,
