@@ -76,7 +76,187 @@
   );
   }
 
+  // ============================================================
+  // GRÁFICOS DO DASHBOARD
+  // SVG inline, sem biblioteca externa: o Portal roda dentro do
+  // HTMLService e não deve depender de CDN para renderizar. As cores
+  // saem da paleta definida em BaseStyles.html.
+  // ============================================================
+
+  var CHART_CORES = ['#0f766e', '#c2410c', '#1d4ed8', '#7c3aed', '#0e7490', '#b45309', '#9d174d'];
+
+  function chartCard(titulo, subtitulo, corpo, legenda) {
+    return '<div class="chart-card"><h4>' + escapeHtml(titulo) + '</h4>' +
+      (subtitulo ? '<div class="chart-sub">' + escapeHtml(subtitulo) + '</div>' : '') +
+      corpo + (legenda || '') + '</div>';
+  }
+
+  function chartVazio(msg) { return '<div class="chart-empty">' + escapeHtml(msg) + '</div>'; }
+
+  function legendaHtml(itens) {
+    return '<div class="chart-legend">' + itens.map(function(it) {
+      return '<span class="legend-item"><span class="legend-dot" style="background:' + it.cor + '"></span>' +
+        escapeHtml(it.label) + ' <b>' + escapeHtml(it.valor) + '</b></span>';
+    }).join('') + '</div>';
+  }
+
+  // Valor curto para rótulo de eixo, onde não cabe a moeda por extenso.
+  function moneyCurto(v) {
+    var n = Number(v) || 0, abs = Math.abs(n);
+    if (abs >= 1000000) return (n / 1000000).toFixed(1).replace('.', ',') + ' mi';
+    if (abs >= 1000) return (n / 1000).toFixed(1).replace('.', ',') + ' mil';
+    return n.toFixed(0);
+  }
+
+  /**
+   * Rosca de composição. fatias: [{label, valor, cor}].
+   * Valores negativos ou zerados são descartados — uma fatia negativa
+   * não tem significado geométrico numa rosca de proporção.
+   */
+  function svgRosca(fatias) {
+    var validas = fatias.filter(function(f) { return (Number(f.valor) || 0) > 0; });
+    var total = validas.reduce(function(a, f) { return a + Number(f.valor); }, 0);
+    if (!(total > 0)) return chartVazio('Sem valores positivos para compor o gráfico.');
+
+    var R = 54, C = 2 * Math.PI * R, offset = 0;
+    var arcos = validas.map(function(f, i) {
+      var len = C * (Number(f.valor) / total);
+      var arco = '<circle cx="70" cy="70" r="' + R + '" fill="none" stroke="' +
+        (f.cor || CHART_CORES[i % CHART_CORES.length]) + '" stroke-width="22" stroke-dasharray="' +
+        len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' +
+        (-offset).toFixed(2) + '"></circle>';
+      offset += len;
+      return arco;
+    }).join('');
+
+    return '<svg class="donut" viewBox="0 0 140 140" role="img">' +
+      '<g transform="rotate(-90 70 70)">' + arcos + '</g></svg>';
+  }
+
+  function legendaRosca(fatias) {
+    var validas = fatias.filter(function(f) { return (Number(f.valor) || 0) > 0; });
+    var total = validas.reduce(function(a, f) { return a + Number(f.valor); }, 0);
+    return legendaHtml(validas.map(function(f, i) {
+      return {
+        cor: f.cor || CHART_CORES[i % CHART_CORES.length],
+        label: f.label,
+        valor: money(f.valor) + ' (' + pct(total > 0 ? Number(f.valor) / total : 0) + ')'
+      };
+    }));
+  }
+
+  /** Barra do faturamento anual contra o teto do MEI, com a marca dos 80%. */
+  function svgBarraMei(a) {
+    if (!a) return chartVazio('Sem dados de faturamento.');
+    var teto = Number(a.tetoMei) || 0;
+    var fat = Number(a.faturamentoAnual) || 0;
+    var p = teto > 0 ? Math.max(0, Math.min(1, fat / teto)) : 0;
+    var cor = a.alerta ? '#b91c1c' : (p >= 0.6 ? '#c2410c' : '#166534');
+
+    var W = 620, X = 8, LARG = W - 16, Y = 22, H = 28;
+    var xAlerta = X + LARG * 0.8;
+
+    return '<svg viewBox="0 0 ' + W + ' 78" role="img">' +
+      '<rect x="' + X + '" y="' + Y + '" width="' + LARG + '" height="' + H + '" rx="6" fill="#eef3f4"></rect>' +
+      '<rect x="' + X + '" y="' + Y + '" width="' + (LARG * p).toFixed(2) + '" height="' + H + '" rx="6" fill="' + cor + '"></rect>' +
+      '<line x1="' + xAlerta.toFixed(2) + '" y1="' + (Y - 7) + '" x2="' + xAlerta.toFixed(2) + '" y2="' + (Y + H + 7) +
+      '" stroke="#b91c1c" stroke-width="2" stroke-dasharray="4 3"></line>' +
+      '<text class="chart-axis" x="' + xAlerta.toFixed(2) + '" y="' + (Y - 11) + '" text-anchor="middle">alerta 80%</text>' +
+      '<text class="chart-axis" x="' + X + '" y="' + (Y + H + 20) + '">R$ 0</text>' +
+      '<text class="chart-axis" x="' + (X + LARG) + '" y="' + (Y + H + 20) + '" text-anchor="end">teto ' +
+      escapeHtml(moneyCurto(teto)) + '</text>' +
+      '</svg>';
+  }
+
+  /**
+   * Faturamento (barras) e lucro líquido (linha) por mês, na mesma
+   * escala. O lucro pode ser negativo, então a escala sempre inclui o
+   * zero e a linha do zero aparece tracejada quando há mês no vermelho.
+   */
+  function svgSerieMensal(meses) {
+    if (!meses || !meses.length) return chartVazio('Sem período para exibir.');
+    var temMovimento = meses.some(function(m) {
+      return (Number(m.faturamento) || 0) !== 0 ||
+             (Number(m.lucroLiquido) || 0) !== 0 ||
+             (Number(m.despesas) || 0) !== 0;
+    });
+    if (!temMovimento) return chartVazio('Nenhum movimento nos últimos ' + meses.length + ' meses.');
+
+    var W = 680, H = 250, ML = 52, MR = 10, MT = 12, MB = 28;
+    var pw = W - ML - MR, ph = H - MT - MB;
+
+    var valores = [0];
+    meses.forEach(function(m) {
+      valores.push(Number(m.faturamento) || 0, Number(m.lucroLiquido) || 0);
+    });
+    var max = Math.max.apply(null, valores);
+    var min = Math.min.apply(null, valores);
+    if (max === min) max = min + 1;
+    var folga = (max - min) * 0.1;
+    max += folga;
+    if (min < 0) min -= folga;
+
+    function y(v) { return MT + ph * (1 - ((v - min) / (max - min))); }
+
+    var passo = pw / meses.length;
+    var larguraBarra = Math.min(30, passo * 0.5);
+
+    var grade = '';
+    for (var g = 0; g <= 4; g++) {
+      var valor = min + (max - min) * (g / 4);
+      var yy = y(valor);
+      grade += '<line class="chart-grid-line" x1="' + ML + '" y1="' + yy.toFixed(1) +
+        '" x2="' + (W - MR) + '" y2="' + yy.toFixed(1) + '"></line>' +
+        '<text class="chart-axis" x="' + (ML - 7) + '" y="' + (yy + 3).toFixed(1) +
+        '" text-anchor="end">' + escapeHtml(moneyCurto(valor)) + '</text>';
+    }
+    if (min < 0) {
+      grade += '<line class="chart-zero-line" x1="' + ML + '" y1="' + y(0).toFixed(1) +
+        '" x2="' + (W - MR) + '" y2="' + y(0).toFixed(1) + '"></line>';
+    }
+
+    var barras = '', rotulos = '', pontos = '', caminho = [];
+    meses.forEach(function(m, i) {
+      var centro = ML + passo * (i + 0.5);
+      var fat = Number(m.faturamento) || 0;
+      var luc = Number(m.lucroLiquido) || 0;
+      var topo = y(Math.max(fat, 0)), base = y(Math.min(fat, 0));
+
+      barras += '<rect x="' + (centro - larguraBarra / 2).toFixed(1) + '" y="' + topo.toFixed(1) +
+        '" width="' + larguraBarra.toFixed(1) + '" height="' + Math.max(1, base - topo).toFixed(1) +
+        '" rx="3" fill="#0f766e" opacity="' + (fat === 0 ? '0.18' : '0.85') + '"></rect>';
+
+      caminho.push((i === 0 ? 'M' : 'L') + centro.toFixed(1) + ' ' + y(luc).toFixed(1));
+      pontos += '<circle cx="' + centro.toFixed(1) + '" cy="' + y(luc).toFixed(1) + '" r="3.5" fill="#c2410c"></circle>';
+      rotulos += '<text class="chart-axis" x="' + centro.toFixed(1) + '" y="' + (H - 9) +
+        '" text-anchor="middle">' + escapeHtml(m.rotulo) + '</text>';
+    });
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + grade + barras +
+      '<path d="' + caminho.join(' ') + '" fill="none" stroke="#c2410c" stroke-width="2.5" ' +
+      'stroke-linejoin="round" stroke-linecap="round"></path>' + pontos + rotulos + '</svg>';
+  }
+
+  function loadSerieMensal() {
+  callServer('uiObterSerieMensal', [12]).then(function(res) {
+  if (res.sucesso === false) throw new Error(res.erro);
+  var meses = res.meses || [];
+  var totalFat = meses.reduce(function(a, m) { return a + (Number(m.faturamento) || 0); }, 0);
+  var totalLuc = meses.reduce(function(a, m) { return a + (Number(m.lucroLiquido) || 0); }, 0);
+  $('dashboardSerieChart').innerHTML = chartCard(
+  'Evolução mensal',
+  'Últimos 12 meses — faturamento bruto e lucro líquido (lucro bruto das vendas menos despesas do mês)',
+  svgSerieMensal(meses),
+  legendaHtml([
+  { cor: '#0f766e', label: 'Faturamento no período', valor: money(totalFat) },
+  { cor: '#c2410c', label: 'Lucro líquido no período', valor: money(totalLuc) }
+  ])
+  );
+  }).catch(function(e) { showMessage(e.message, 'err'); });
+  }
+
   function loadDashboard() {
+  loadSerieMensal();
   callServer('uiObterDashboardGeral').then(function(res) {
   if (res.sucesso === false) throw new Error(res.erro);
   var c = res.carteira || {}, f = res.financeiro || {};
@@ -91,7 +271,31 @@
   card('Produtos cadastrados / com estoque', (res.totalProdutosCadastrados || 0) + ' / ' + (c.produtosComEstoque || 0))
   ].join('');
 
-  $('dashboardMeiCard').innerHTML = meiCardHtml(res.alertaMei);
+  var a = res.alertaMei || {};
+  $('dashboardMeiCard').innerHTML = chartCard(
+  'Faturamento ' + (a.ano || '') + ' × teto MEI',
+  money(a.faturamentoAnual) + ' de ' + money(a.tetoMei) + ' (' + pct(a.percentualDoTeto) + ' do teto)',
+  svgBarraMei(res.alertaMei)
+  );
+
+  // Rosca 1: onde o capital está parado. Usa o custo histórico do
+  // estoque (não o valor de mercado) porque a comparação com o caixa
+  // livre só faz sentido entre valores de capital efetivamente aplicado.
+  var fatiasDinheiro = [
+  { label: 'Alocado em estoque (custo)', valor: f.valorEstoquePeloCusto, cor: '#0f766e' },
+  { label: 'Caixa livre', valor: res.caixaLivre, cor: '#c2410c' }
+  ];
+
+  var fatiasSocios = (res.socios || []).map(function(s, i) {
+  return { label: s.nome, valor: s.totalAportado, cor: CHART_CORES[i % CHART_CORES.length] };
+  });
+
+  $('dashboardCharts').innerHTML =
+  chartCard('Onde está o dinheiro', 'Capital aplicado em estoque × caixa livre',
+  svgRosca(fatiasDinheiro), legendaRosca(fatiasDinheiro)) +
+  chartCard('Participação dos sócios', 'Proporcional ao total aportado por cada um',
+  svgRosca(fatiasSocios), legendaRosca(fatiasSocios));
+
 
   $('dashboardSociosTable').innerHTML = table([
   { label: 'Sócio', key: 'nome' },

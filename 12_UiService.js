@@ -44,6 +44,7 @@
  function uiSolicitarRetirada(payload) { return UiService.uiSolicitarRetirada(payload); }
  function uiListarRetiradas() { return UiService.uiListarRetiradas(); }
  function uiObterDashboardGeral() { return UiService.uiObterDashboardGeral(); }
+ function uiObterSerieMensal(meses) { return UiService.uiObterSerieMensal(meses); }
 
  var UiService = (function () {
 
@@ -458,6 +459,93 @@
  } catch (e) { return _erro('uiObterDashboardGeral', e); }
  }
 
+  /**
+   * Série mensal dos últimos N meses, para os gráficos do Dashboard.
+   *
+   * Lê Vendas, Itens_Venda e Despesas uma única vez cada e agrega em
+   * memória — não introduz nova fonte de verdade, apenas reorganiza por
+   * mês o que VendaService e FinanceiroService já gravaram.
+   *
+   * Vendas canceladas são ignoradas. O lucro bruto vem de
+   * Itens_Venda (já calculado na venda, com o custo FIFO do lote
+   * consumido); o mês do item é o mês da venda a que ele pertence.
+   *
+   * @param {number} [meses] - Quantos meses retornar (default 12, máx 36).
+   * @returns {{sucesso: boolean, meses: Array<Object>}}
+   */
+  function uiObterSerieMensal(meses) {
+    try {
+      var C_DESP = CONFIG.CAMPOS.DESPESAS;
+      var qtd = Math.max(1, Math.min(36, Number(meses) || 12));
+
+      var ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+                   'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+      function chave(d) {
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+      }
+      function dataDe(valor) {
+        return Utils.parsarData(String(valor || '').split(' ')[0]);
+      }
+
+      // Esqueleto dos últimos `qtd` meses, do mais antigo para o mais
+      // recente. Meses sem movimento ficam zerados em vez de sumir --
+      // um buraco no gráfico esconderia justamente o mês parado.
+      var hoje = new Date();
+      var buckets = {};
+      var serie = [];
+      for (var i = qtd - 1; i >= 0; i--) {
+        var d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        var k = chave(d);
+        var bucket = {
+          mes:           k,
+          rotulo:        ABREV[d.getMonth()] + '/' + String(d.getFullYear()).slice(-2),
+          faturamento:   0,
+          lucroBruto:    0,
+          despesas:      0,
+          lucroLiquido:  0
+        };
+        buckets[k] = bucket;
+        serie.push(bucket);
+      }
+
+      // Vendas: faturamento por mês + mapa ID Venda -> mês, usado logo
+      // abaixo para atribuir o lucro de cada item ao mês certo.
+      var mesPorVenda = {};
+      SheetService.getDadosComoObjetos(CONFIG.ABAS.VENDAS).forEach(function(v) {
+        var status = String(v[C_VENDA.STATUS] || '').toLowerCase();
+        if (status === 'cancelada') return;
+        var data = dataDe(v[C_VENDA.DATA_VENDA]);
+        if (!data) return;
+        var k = chave(data);
+        mesPorVenda[v[C_VENDA.ID_VENDA]] = k;
+        if (buckets[k]) buckets[k].faturamento += Number(v[C_VENDA.VALOR_BRUTO]) || 0;
+      });
+
+      SheetService.getDadosComoObjetos(CONFIG.ABAS.ITENS_VENDA).forEach(function(item) {
+        var k = mesPorVenda[item[C_ITEM.ID_VENDA]];
+        if (k && buckets[k]) buckets[k].lucroBruto += Number(item[C_ITEM.LUCRO_BRUTO]) || 0;
+      });
+
+      SheetService.getDadosComoObjetos(CONFIG.ABAS.DESPESAS).forEach(function(desp) {
+        var data = dataDe(desp[C_DESP.DATA_DESPESA]);
+        if (!data) return;
+        var k = chave(data);
+        if (buckets[k]) buckets[k].despesas += Number(desp[C_DESP.VALOR]) || 0;
+      });
+
+      serie.forEach(function(m) {
+        m.faturamento  = Utils.arredondar(m.faturamento, 2);
+        m.lucroBruto   = Utils.arredondar(m.lucroBruto, 2);
+        m.despesas     = Utils.arredondar(m.despesas, 2);
+        m.lucroLiquido = Utils.arredondar(m.lucroBruto - m.despesas, 2);
+      });
+
+      return _ok({ meses: serie });
+    } catch (e) { return _erro('uiObterSerieMensal', e); }
+  }
+
+
  return {
  abrirPortalMVP: abrirPortalMVP,
  include: include,
@@ -485,7 +573,8 @@
  uiListarAportesSocios: uiListarAportesSocios,
  uiSolicitarRetirada: uiSolicitarRetirada,
  uiListarRetiradas: uiListarRetiradas,
- uiObterDashboardGeral: uiObterDashboardGeral
+ uiObterDashboardGeral: uiObterDashboardGeral,
+ uiObterSerieMensal: uiObterSerieMensal
  };
 
  })();

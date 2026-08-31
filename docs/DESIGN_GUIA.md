@@ -23,6 +23,32 @@ Consultar antes de adicionar/alterar telas, para manter consistência.
 - `Portal.html`: marcação das telas em si; inclui os dois arquivos acima via
   `<?!= include('BaseStyles') ?>` / `<?!= include('BaseScripts') ?>` (padrão HTMLService).
 
+## Gráficos
+
+Os gráficos do Dashboard são **SVG inline gerado em JavaScript**, em `BaseScripts.html`.
+Não usar biblioteca externa (Chart.js, Google Charts, D3): o Portal roda dentro do
+HTMLService e não deve depender de CDN para renderizar — se a rede do usuário bloquear o
+CDN, o dashboard vira uma tela em branco.
+
+Helpers disponíveis:
+
+- `chartCard(titulo, subtitulo, corpo, legenda)` — moldura padrão, mesma linguagem
+  visual do `card()`.
+- `svgRosca(fatias)` + `legendaRosca(fatias)` — composição proporcional. `fatias` é
+  `[{label, valor, cor}]`; valores zerados ou negativos são descartados.
+- `svgBarraMei(alerta)` — barra de progresso contra um teto, com marca de alerta.
+- `svgSerieMensal(meses)` — barras + linha na mesma escala, com zero incluído.
+- `moneyCurto(v)` — valor abreviado ("12,4 mil") para rótulo de eixo.
+
+Regras ao adicionar um gráfico novo:
+
+1. **Sem dados é um estado, não um erro.** Todo helper retorna `chartVazio(msg)` quando
+   não há o que desenhar, em vez de um eixo vazio ou um SVG com `NaN` nas coordenadas.
+2. **Cores saem da paleta** de `BaseStyles.html` (`CHART_CORES`), não de literais novos
+   espalhados pelo código.
+3. **Escala que inclui o zero** sempre que a série puder ser negativa (lucro, saldo) —
+   um gráfico que corta o zero mente sobre a magnitude do prejuízo.
+
 ## Ao adicionar uma tela nova
 
 1. Verificar se algum componente de `BaseStyles.html` já serve (card, tabela, formulário)

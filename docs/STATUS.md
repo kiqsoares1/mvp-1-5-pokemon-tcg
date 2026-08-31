@@ -4,6 +4,66 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-08-31 (sessão 4 — gráficos no Dashboard do Portal)
+
+**Pedido do Kaique:** o Dashboard não mostrava gráficos. Levantamento confirmou que **não
+existia nenhum gráfico no projeto** — grep por `Chart`, `EmbeddedChart` e `SPARKLINE` não
+retornava nada. O Dashboard era 8 cards de número, o card do MEI e 2 tabelas.
+
+Decidido: quatro gráficos, no Portal, em **SVG inline gerado em JavaScript** — sem
+biblioteca externa, porque o Portal roda dentro do HTMLService e um CDN bloqueado deixaria
+o dashboard em branco.
+
+**Feito:**
+- `12_UiService.js`: nova `uiObterSerieMensal(meses)` (default 12, máx 36) + wrapper global
+  e export. Lê `Vendas`, `Itens_Venda` e `Despesas` **uma vez cada** e agrega em memória —
+  sem N+1. Devolve por mês: faturamento, lucro bruto, despesas e lucro líquido. Vendas com
+  status `Cancelada` são ignoradas; o mês de um item é o mês da venda a que ele pertence;
+  meses sem movimento vêm zerados em vez de sumir (um buraco no gráfico esconderia
+  justamente o mês parado).
+- `BaseScripts.html`: helpers de desenho — `chartCard`, `chartVazio`, `legendaHtml`,
+  `moneyCurto`, `svgRosca` + `legendaRosca`, `svgBarraMei`, `svgSerieMensal`. Mais
+  `loadSerieMensal()`, chamada junto com `loadDashboard()`.
+- `BaseStyles.html`: `.charts-grid`, `.chart-card`, `.chart-legend`, `.chart-empty` e
+  estilos de eixo, todos usando a paleta que já existia.
+- `Portal.html`: seções "Evolução mensal", "Composição" e o bloco do MEI virando gráfico.
+- `docs/DESIGN_GUIA.md`: seção "Gráficos" com os helpers e as três regras (sem dados é um
+  estado e não um erro; cor sai da paleta; escala inclui o zero quando a série pode ser
+  negativa).
+
+**Cuidado que quase virou bug:** a primeira tentativa removia `meiCardHtml` por parecer
+morta depois da troca no Dashboard — ela também é usada na tela de Sócios
+(`BaseScripts.html`, render de `sociosCards`). Mantida.
+
+**Validação:** 16 assertivas sobre o SVG gerado pelos helpers reais (barras assentam
+exatamente na linha do zero; arcos da rosca somam a circunferência; casos-limite viram
+mensagem; nenhuma coordenada `NaN`; teto zerado não divide por zero; barra do MEI satura
+em 100%) — todas passaram. Conferido também visualmente numa página de preview montada com
+o CSS e as funções reais do projeto. Sintaxe de todos os `.js` e do bloco `<script>` do
+`BaseScripts.html` validada.
+
+**Armadilha do `clasp` registrada:** `.clasp.json` tem `rootDir: ""` e
+`scriptExtensions: ['.js', '.gs']` — **qualquer `.js` na raiz do repositório vai para o
+Apps Script no próximo push**. Por isso os scripts de teste/preview em Node desta sessão
+ficaram fora do repositório (só no scratchpad): um `.js` com `require()` na raiz quebraria
+o projeto Apps Script. Se um dia esses testes forem versionados, precisam ir para uma
+subpasta e/ou entrar em `filePushOrder`/ignore do clasp.
+
+**Dívida técnica encontrada (não corrigida):** `10_FinanceiroService.js`, `12_UiService.js`,
+`BaseScripts.html`, `BaseStyles.html` e `Portal.html` estão com a **indentação achatada** —
+todas as linhas com o mesmo recuo, sem aninhamento. São exatamente os arquivos reescritos
+direto no editor do Apps Script via automação de navegador na sessão de 18/08.
+`20_SociosService.js` e os demais mantêm a indentação correta. O código novo desta sessão
+foi escrito indentado de propósito, para não propagar o estrago. Reindentar os 5 arquivos é
+um diff grande e merece commit próprio.
+
+**Pendente:**
+- `clasp push` e verificação do Dashboard ao vivo na HML — os gráficos ainda não foram
+  vistos rodando contra dados reais.
+- Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — continuam não executados.
+- Cobertura de assert real fora dos dois testes de venda: rateio de compra, participação
+  societária, retirada máxima e reserva mínima de caixa.
+
 ## 2026-08-30 (sessão 3 — remoção do fluxo "despesa paga do bolso do sócio")
 
 **Decisão do Kaique:** sócio não paga despesa da empresa com dinheiro do próprio bolso.
