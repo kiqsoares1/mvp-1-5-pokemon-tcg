@@ -65,9 +65,34 @@ dinheiro entrou de verdade e a participação societária é proporcional ao tot
 Apagar o aporte deixaria `Participação Atual` inconsistente, porque a recalculação só
 dispara dentro de `registrarAporte`.
 
+**Proteção de abas — RESOLVIDO (pendência da sessão 2 fechada).** As 3 abas que apareciam
+como "Sem proteção" (`Socios`, `Aportes_Socios`, `Retiradas`) **não eram bug**. Revisão do
+código descartou as hipóteses: os nomes em `CONFIG.ABAS_PROTEGIDAS` batem exatamente com
+`CONFIG.ABAS`, e `InstallService.instalar()` percorre a lista inteira sem desvio. O que
+tinha acontecido é que a rodada que protegeu 13 abas ocorreu quando o Apps Script ao vivo
+ainda tinha a lista antiga de 13 itens; o Health Check que reportou "13/16" rodou depois
+do push com os 3 nomes novos.
+
+Rodado pelo Kaique na planilha HML: "Aplicar Proteções de Abas" seguido de "Health Check
+do Sistema". Resultado confirmado por screenshot:
+
+- Estrutura: válida
+- **Abas protegidas: 16/16**
+- Abas auxiliares ocultas: 4/4
+- Logs: INFO=248 | WARN=10 | ERR=0 | CRIT=0
+- Dados na HML: Produtos_Ativos 5, Compras 6, Vendas 19, Lotes_Estoque 16
+
+`ERR=0` e `CRIT=0` confirmam de quebra que o código enviado nesta sessão está rodando
+limpo na planilha. Nenhuma mudança de código foi necessária.
+
 **Pendente:**
-- Abrir o Portal na HML e confirmar que a tela de Aporte carrega sem erro depois do push.
-- Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — continuam não executados.
+- Abrir o Portal na HML e confirmar que a tela de Aporte carrega sem erro (única
+  verificação que restou desta sessão).
+- Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — continuam não executados. É a
+  maior lacuna aberta do projeto hoje.
+- Cobertura de teste automatizado com assert real fora dos dois testes de venda: rateio de
+  compra, participação societária, retirada máxima e reserva mínima de caixa seguem sem
+  assert.
 
 ## 2026-08-18 (sessão 2 — revisão e correção de código)
 
