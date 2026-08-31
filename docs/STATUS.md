@@ -37,7 +37,10 @@ arquivos enviados ao Apps Script ao vivo, 23:21) e uma tentativa de `git push` (
 non-fast-forward). Nada foi corrompido — só os 6 arquivos pretendidos estão modificados e
 o `STATUS.md` ficou intacto —, mas o Apps Script ao vivo recebeu as mudanças antes da
 revisão. **Lição:** nunca passar markdown com crases dentro de `node -e "..."` no bash;
-usar heredoc com delimitador entre aspas simples.
+usar heredoc com delimitador entre aspas simples. O `git pull --rebase` + `git push` foram
+feitos depois de forma deliberada e aprovada pelo Kaique: commit `d0a59f1`, rebase limpo
+em cima do `fee53fa`, deixando GitHub, pasta local e Apps Script ao vivo os três em
+sincronia.
 
 **Verificado depois (sem ação necessária):** a suspeita de sobra do valor obsoleto
 `Despesa Convertida` na aba `Configuracoes` não gera problema nenhum. Apurado no código:
