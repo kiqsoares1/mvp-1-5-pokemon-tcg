@@ -39,16 +39,32 @@ o `STATUS.md` ficou intacto —, mas o Apps Script ao vivo recebeu as mudanças 
 revisão. **Lição:** nunca passar markdown com crases dentro de `node -e "..."` no bash;
 usar heredoc com delimitador entre aspas simples.
 
+**Verificado depois (sem ação necessária):** a suspeita de sobra do valor obsoleto
+`Despesa Convertida` na aba `Configuracoes` não gera problema nenhum. Apurado no código:
+
+- Não existe `setDataValidation` em lugar nenhum do projeto — a aba `Configuracoes` é
+  documentação de valores válidos, não alimenta dropdown real da planilha.
+- O `<select>` de forma de pagamento do Portal é hardcoded em `Portal.html` (já
+  corrigido), não lê a `Configuracoes`.
+- `validarConfiguracoesSilencioso` só checa se cada grupo obrigatório existe e não está
+  vazio — nunca compara os valores com `CONFIG.LISTAS`. Valor a mais não acusa erro.
+- "Criar Estrutura Base" nem chega a tocar a aba: o seed da `Configuracoes` só roda
+  `if (contarLinhas === 0)`, e a HML já tem dados. O valor obsoleto fica lá até alguém
+  apagar a linha à mão — puramente cosmético.
+- `SociosService.registrarAporte` grava `payload.formaPagamento` direto, sem validar
+  contra a lista. Aporte antigo com `Despesa Convertida` continua exibindo normal.
+- O gerador de massa demo usa `formaPagamento: 'Pix'` em todos os aportes, então só
+  existiria registro assim se tivesse sido lançado à mão pelo Portal.
+
+**Cuidado registrado para o futuro:** se algum dia aparecer um aporte com forma de
+pagamento obsoleta, o certo é **editar o rótulo para `Outro`, nunca apagar a linha** — o
+dinheiro entrou de verdade e a participação societária é proporcional ao total aportado.
+Apagar o aporte deixaria `Participação Atual` inconsistente, porque a recalculação só
+dispara dentro de `registrarAporte`.
+
 **Pendente:**
-- `git push` — a `main` local está 1 commit atrás do `origin/main` (commit `fee53fa`
-  "Update README.md", feito direto no GitHub). Precisa de `git pull --rebase` antes.
-- Rodar **"Criar Estrutura Base"** e conferir o grupo `Formas Pagamento Sócio` na aba
-  `Configuracoes`: a lista encolheu de 5 para 4 valores e é preciso confirmar se a
-  instalação remove o valor obsoleto `Despesa Convertida` ou apenas reescreve os
-  presentes (pode sobrar linha para apagar à mão).
-- Verificar se algum aporte já lançado na HML usa `Despesa Convertida` como forma de
-  pagamento — se usar, decidir se corrige o registro ou mantém como histórico.
 - Abrir o Portal na HML e confirmar que a tela de Aporte carrega sem erro depois do push.
+- Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — continuam não executados.
 
 ## 2026-08-18 (sessão 2 — revisão e correção de código)
 
