@@ -506,7 +506,7 @@
  STATUS_RESOLUCAO:   ['Aberto', 'Em Análise', 'Resolvido', 'Ignorado'],
 
  // --- Módulo Societário (novo em v1.6.0) ---
- FORMAS_PAGAMENTO_SOCIO: ['Pix', 'Transferência', 'Dinheiro', 'Despesa Convertida', 'Outro'],
+ FORMAS_PAGAMENTO_SOCIO: ['Pix', 'Transferência', 'Dinheiro', 'Outro'],
  STATUS_RETIRADA:        ['Aprovada', 'Aprovada Parcial', 'Bloqueada'],
  NATUREZA_DESPESA:       ['Fixa', 'Variável']
  },

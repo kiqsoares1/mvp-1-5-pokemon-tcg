@@ -85,8 +85,10 @@ Ver `20_SociosService.gs` no código.
 - Mudanças de participação nunca retroagem: cada venda grava a % vigente na data dela em
   `Lucro_Por_Item_Socio` (snapshot imutável). Histórico de participações fica em
   `Historico_Participacoes`, só inserido, nunca editado.
-- Não existe empréstimo de sócio para a empresa — todo dinheiro que entra de um sócio é
-  aporte de capital, sempre aumenta participação.
+- Não existe empréstimo em nenhuma das duas direções — nem de sócio para a empresa, nem
+  da empresa para sócio. Todo dinheiro que entra de um sócio é aporte de capital e sempre
+  aumenta participação; todo dinheiro que sai para um sócio é retirada de lucro dele,
+  limitada pela regra de retirada máxima.
 - Não existe financiamento de lote por sócio específico — lucro sempre segue a
   participação societária geral vigente.
 - Reserva mínima de caixa: `Config_App.RESERVA_MINIMA_CAIXA` (default 0, configurável).
@@ -95,8 +97,9 @@ Ver `20_SociosService.gs` no código.
   empresa (`participação % × caixa livre`). Caixa livre = caixa teórico do Financeiro -
   reserva mínima. **Regra chave**: um sócio só pode sacar o que é dele — nunca o aporte
   genérico da empresa nem o lucro de outro sócio.
-- Despesa paga por um sócio do próprio bolso vira aporte automático
-  (`converterDespesaEmAporte_`) — não existe reembolso separado.
+- **Sócio não paga despesa da empresa do próprio bolso.** Toda despesa sai do caixa da
+  empresa. Não existe reembolso e não existe conversão de despesa em aporte — se um sócio
+  quiser colocar dinheiro na sociedade, lança um aporte normal pelo Portal.
 - **Alerta de faturamento MEI**: alerta não bloqueante quando o faturamento anual se
   aproxima do teto do MEI (`Config_App.TETO_ANUAL_MEI`, default R$81.000/ano) —
   `SociosService.verificarAlertaFaturamentoMEI()`, exibido no Portal → Sócios/Dashboard

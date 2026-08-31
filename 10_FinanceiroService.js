@@ -243,31 +243,7 @@
  return { sucesso: false, id: null, erro: 'Erro técnico ao registrar despesa: ' + e.message, detalhes: [e.message] };
  }
 
- var resultado = _sucesso('registrarDespesa', 'Despesa registrada: ' + idDespesa + ' | Valor: ' + validacao.valor, idDespesa, payload.idRequisicao);
-
- // Despesa paga do próprio bolso de um sócio vira aporte automático dele
- // (regra de negócio: não existe reembolso separado, nem empréstimo de
- // sócio para a empresa). Roda depois da despesa já estar gravada; falha
- // aqui não desfaz a despesa, só fica em log para correção manual.
- if (!Utils.eVazio(payload.pagoDoBolsoPorSocio)) {
- try {
- if (typeof SociosService !== 'undefined' && SociosService.converterDespesaEmAporte_) {
- var resAporte = SociosService.converterDespesaEmAporte_(
- payload.pagoDoBolsoPorSocio, validacao.valor, idDespesa, payload.observacao || '');
- resultado.aporteConvertido = resAporte;
- if (!resAporte || !resAporte.sucesso) {
- LogService.error('FinanceiroService', 'registrarDespesa',
- 'Despesa ' + idDespesa + ' marcada como paga do bolso, mas falhou ao converter em aporte: ' +
- (resAporte ? resAporte.erro : 'SociosService indisponível'), idDespesa);
- }
- }
- } catch (se) {
- LogService.error('FinanceiroService', 'registrarDespesa',
- 'Falha ao converter despesa ' + idDespesa + ' em aporte de sócio: ' + se.message, idDespesa);
- }
- }
-
- return resultado;
+ return _sucesso('registrarDespesa', 'Despesa registrada: ' + idDespesa + ' | Valor: ' + validacao.valor, idDespesa, payload.idRequisicao);
  }
 
  function _passaFiltros(registro, campoNegocio, campoData, filtros) {

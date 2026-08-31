@@ -28,8 +28,9 @@
  *    disponível e (b) cota do sócio sobre o caixa livre da empresa
  *    (participação % × caixa livre, caixa livre = caixa teórico -
  *    reserva mínima configurável em Config_App).
- *  - Despesa paga por um sócio do próprio bolso vira aporte
- *    automático (não existe reembolso separado).
+ *  - Sócio não paga despesa da empresa do próprio bolso: toda
+ *    despesa sai do caixa da empresa. Não existe reembolso, nem
+ *    empréstimo em nenhuma das duas direções.
  *
  * Dependências: 00_Config, 02_Utils, 03_SheetService, 04_IdService,
  *               10_FinanceiroService, 14_LogService
@@ -295,22 +296,6 @@ var SociosService = (function () {
   function _erroAporte(msg, idRequisicao) {
     LogService.warning('SociosService', 'registrarAporte', msg, idRequisicao || '');
     return { sucesso: false, idAporte: null, erro: msg };
-  }
-
-  /**
-   * Despesa paga por um sócio do próprio bolso vira aporte
-   * automático — não existe reembolso separado, pois não há
-   * empréstimo de sócio para a empresa.
-   */
-  function converterDespesaEmAporte_(idSocio, valor, idDespesa, observacao) {
-    return registrarAporte({
-      idSocio: idSocio,
-      valor: valor,
-      formaPagamento: 'Despesa Convertida',
-      origem: 'Despesa paga do próprio bolso: ' + idDespesa,
-      observacao: observacao || '',
-      idRequisicao: 'DESP-' + idDespesa
-    });
   }
 
   // ============================================================
@@ -602,7 +587,6 @@ var SociosService = (function () {
     cadastrarSocio:                cadastrarSocio,
     recalcularParticipacoes_:      recalcularParticipacoes_,
     registrarAporte:               registrarAporte,
-    converterDespesaEmAporte_:     converterDespesaEmAporte_,
     reconhecerLucroDaVenda:        reconhecerLucroDaVenda,
     calcularCaixaLivre:            calcularCaixaLivre,
     calcularRetiradaMaxima:        calcularRetiradaMaxima,

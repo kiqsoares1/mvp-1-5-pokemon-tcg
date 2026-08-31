@@ -21,8 +21,9 @@ resultado (✅/❌/⚠️) e data a cada rodada, num `STATUS.md` ou direto neste
       empresa → deve bloquear (usar o menor dos dois limites).
 - [ ] Retirada válida (dentro dos dois limites) → aprova e gera linha em
       `Aportes_Resgates` como resgate.
-- [ ] Registrar despesa "paga do bolso" por um sócio → confirmar que vira aporte
-      automático (`converterDespesaEmAporte_`), sem reembolso separado.
+- [ ] Confirmar que o formulário de despesa não oferece nenhuma opção de "pago do bolso"
+      por sócio, e que `Despesa Convertida` não aparece mais como forma de pagamento de
+      aporte.
 
 ## 3. Despesas (Fixa/Variável)
 

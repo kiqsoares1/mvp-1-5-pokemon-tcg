@@ -4,6 +4,52 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-08-30 (sessão 3 — remoção do fluxo "despesa paga do bolso do sócio")
+
+**Decisão do Kaique:** sócio não paga despesa da empresa com dinheiro do próprio bolso.
+Toda despesa sai do caixa da empresa. Não existe empréstimo em nenhuma das duas direções,
+nem reembolso, nem conversão de despesa em aporte. Isso **cancela a pendência** aberta na
+sessão 2 de expor `pagoDoBolsoPorSocio` no Portal — o fluxo inteiro foi removido em vez de
+ser exposto.
+
+**Feito:**
+- `10_FinanceiroService.js`: removido o bloco `pagoDoBolsoPorSocio` de `registrarDespesa`
+  (a função agora só grava a despesa e retorna). Removido junto um `return resultado;`
+  morto que sobrou da limpeza.
+- `20_SociosService.js`: removida a função `converterDespesaEmAporte_`, sua exportação na
+  interface pública e a regra correspondente no cabeçalho do arquivo (substituída pela
+  regra nova).
+- `00_Config.js`: `Despesa Convertida` removida de `CONFIG.LISTAS.FORMAS_PAGAMENTO_SOCIO`
+  — esse valor só existia para o fluxo removido.
+- `Portal.html`: removida a opção `Despesa Convertida` do select de forma de pagamento do
+  aporte; placeholder do campo Origem trocado (não sugere mais "despesa paga do próprio
+  bolso"); texto de ajuda reescrito para afirmar a regra nova.
+- `docs/REGRAS_DE_NEGOCIO.md` e `docs/PLANO_DE_TESTES.md` atualizados.
+- Confirmado por inspeção que **não existe caminho de empréstimo empresa → sócio**:
+  `calcularRetiradaMaxima` é `Math.max(0, Math.min(lucroDisponivel, cotaCaixaLivre))` — o
+  sócio só saca lucro que já é dele e que cabe na cota dele do caixa livre.
+- Todos os arquivos `.js` passaram por `node --check` — sem erros.
+
+**Incidente desta sessão (deploy não intencional):** ao montar esta entrada do STATUS via
+`node -e "..."` com aspas duplas no shell, as crases do texto markdown foram interpretadas
+pelo bash como substituição de comando. Isso executou de verdade um `clasp push` (30
+arquivos enviados ao Apps Script ao vivo, 23:21) e uma tentativa de `git push` (rejeitada,
+non-fast-forward). Nada foi corrompido — só os 6 arquivos pretendidos estão modificados e
+o `STATUS.md` ficou intacto —, mas o Apps Script ao vivo recebeu as mudanças antes da
+revisão. **Lição:** nunca passar markdown com crases dentro de `node -e "..."` no bash;
+usar heredoc com delimitador entre aspas simples.
+
+**Pendente:**
+- `git push` — a `main` local está 1 commit atrás do `origin/main` (commit `fee53fa`
+  "Update README.md", feito direto no GitHub). Precisa de `git pull --rebase` antes.
+- Rodar **"Criar Estrutura Base"** e conferir o grupo `Formas Pagamento Sócio` na aba
+  `Configuracoes`: a lista encolheu de 5 para 4 valores e é preciso confirmar se a
+  instalação remove o valor obsoleto `Despesa Convertida` ou apenas reescreve os
+  presentes (pode sobrar linha para apagar à mão).
+- Verificar se algum aporte já lançado na HML usa `Despesa Convertida` como forma de
+  pagamento — se usar, decidir se corrige o registro ou mantém como histórico.
+- Abrir o Portal na HML e confirmar que a tela de Aporte carrega sem erro depois do push.
+
 ## 2026-08-18 (sessão 2 — revisão e correção de código)
 
 **Feito:** revisão completa dos 24 arquivos `.js` do repositório (via 5 sub-revisões

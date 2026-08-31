@@ -225,12 +225,12 @@ SÓCIOS — cadastro, aportes e retiradas (tudo vinculado a sócio)
 <label>Sócio<select name="idSocio" id="aporteSocioSelect" required></select></label>
 <label>Data<input name="data" placeholder="dd/mm/aaaa"></label>
 <label>Valor<input name="valor" type="number" step="0.01" required></label>
-<label>Forma de Pagamento<select name="formaPagamento"><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Despesa Convertida</option><option>Outro</option></select></label>
-<label class="wide">Origem<input name="origem" placeholder="Ex: despesa paga do próprio bolso"></label>
+<label>Forma de Pagamento<select name="formaPagamento"><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Outro</option></select></label>
+<label class="wide">Origem<input name="origem" placeholder="Ex: capital próprio, venda de coleção pessoal"></label>
 <label class="wide">Observação<input name="observacao"></label>
 <div class="wide actions"><button class="btn" type="submit">Registrar Aporte</button></div>
 </form>
-<p class="hint">Todo dinheiro que entra de um sócio é aporte de capital — não existe empréstimo de sócio. Uma despesa paga do próprio bolso deve ser lançada aqui como aporte, com a origem explicada.</p>
+<p class="hint">Todo dinheiro que entra de um sócio é aporte de capital e aumenta a participação dele — não existe empréstimo em nenhuma das duas direções. Despesas da empresa são sempre pagas pelo caixa da empresa, nunca do bolso de um sócio.</p>
 <pre id="aporteResult" class="result-box"></pre>
 <div id="aportesTable" class="table-wrap"></div>
 
