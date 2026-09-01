@@ -23,12 +23,30 @@ alguém ler o log. Rodar depois de qualquer mexida em cálculo:
       valor de cada item, sem perder centavo no arredondamento, e desconto maior que o
       frete gerando crédito. Usa `calcularPrevia`, **não grava nada**.
 
+## 1c. Fluxo completo automatizado (E2E)
+
+`testarFluxoCompletoE2E()` cobre, com assert em cada passo e na ordem em que as coisas
+acontecem de verdade, boa parte das seções 2 a 5 abaixo: despesa → compra com rateio →
+abertura de box → venda → retirada.
+
+**⚠️ Este teste escreve na planilha.** Só insere (nunca apaga nem edita linha existente)
+e marca tudo com `E2E` no nome/descrição. Rodar em HML.
+
+- [ ] `testarFluxoCompletoE2E()` — verde significa: despesa exige natureza; o frete
+      rateado chega ao custo do lote; abertura de box preserva o custo e não vira
+      receita; venda distribui o lucro inteiro entre os sócios; venda acima do saldo
+      bloqueia; retirada acima do limite não aprova mais que o limite e retirada dentro
+      do limite baixa o lucro disponível.
+
+Os itens marcados **(E2E)** nas seções abaixo já são cobertos por ele. Os demais
+continuam sendo verificação manual pelo Portal.
+
 ## 2. Sócios
 
 - [ ] Cadastrar os 3 sócios padrão (Kaique, Samuel, Lucas), participação inicial 0%.
 - [ ] Lançar aporte de um sócio → participação de todos recalcula proporcionalmente ao
       total aportado.
-- [ ] Tentar retirada acima do lucro disponível do sócio → deve bloquear.
+- [ ] **(E2E)** Tentar retirada acima do lucro disponível do sócio → deve bloquear.
 - [ ] Tentar retirada dentro do lucro disponível, mas acima da cota do caixa livre da
       empresa → deve bloquear (usar o menor dos dois limites).
 - [ ] Retirada válida (dentro dos dois limites) → aprova e gera linha em
@@ -39,26 +57,26 @@ alguém ler o log. Rodar depois de qualquer mexida em cálculo:
 
 ## 3. Despesas (Fixa/Variável)
 
-- [ ] Registrar uma despesa com natureza `Fixa` — confirmar que salva corretamente e
+- [ ] **(E2E)** Registrar uma despesa com natureza `Fixa` — confirmar que salva corretamente e
       aparece no resumo financeiro segmentado por natureza.
-- [ ] Registrar uma despesa com natureza `Variável` — mesma verificação.
+- [ ] **(E2E)** Registrar uma despesa com natureza `Variável` — mesma verificação.
 - [ ] Confirmar no menu Validação → "Validar Configuracoes" que o grupo `Natureza Despesa`
       não aparece mais como ausente.
 
 ## 4. Compras / Estoque / Abertura
 
-- [ ] Compra com múltiplos itens + frete/desconto → conferir rateio proporcional e
+- [ ] **(E2E)** Compra com múltiplos itens + frete/desconto → conferir rateio proporcional e
       arredondamento no último item.
-- [ ] Abertura de um produto Pokémon (box) → conferir que baixa o lote origem, cria lote
+- [ ] **(E2E)** Abertura de um produto Pokémon (box) → conferir que baixa o lote origem, cria lote
       destino, custo unitário calculado corretamente, e que isso não aparece como
       lucro/receita em nenhum lugar.
-- [ ] Tentar operação com produto inativo → deve bloquear.
+- [ ] **(E2E)** Tentar operação com produto inativo → deve bloquear.
 
 ## 5. Vendas
 
-- [ ] Venda simples consumindo 1 lote via FIFO → status `Concluída`, lucro reconhecido por
+- [ ] **(E2E)** Venda simples consumindo 1 lote via FIFO → status `Concluída`, lucro reconhecido por
       sócio na participação vigente na data.
-- [ ] Venda tentando consumir mais que o saldo disponível → deve bloquear.
+- [ ] **(E2E)** Venda tentando consumir mais que o saldo disponível → deve bloquear.
 - [ ] Venda tentando consumir lote em Hold → deve bloquear.
 - [ ] Conferir `Lucro_Por_Item_Socio`: a % gravada é a vigente na data da venda, mesmo que
       a participação mude depois (não deve retroagir).

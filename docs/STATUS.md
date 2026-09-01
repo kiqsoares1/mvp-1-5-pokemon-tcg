@@ -4,6 +4,50 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-08-31 (sessão 6 — teste E2E do fluxo funcional)
+
+**Alvo:** a maior lacuna do projeto — as seções 2 a 7 do `PLANO_DE_TESTES.md` nunca
+executadas. Em vez de percorrer o roteiro manualmente uma vez e marcar caixinhas, virou
+`99_Testes_E2E.js`: o fluxo inteiro com assert em cada passo, repetível.
+
+`testarFluxoCompletoE2E()` roda na ordem real: produtos → despesa → compra com rateio →
+abertura de box → venda → retirada. **Escreve na planilha** (só insere, nunca apaga nem
+edita linha existente; tudo marcado com `E2E`).
+
+**O que cada passo prova:**
+- Despesas: Fixa e Variável entram; **despesa sem natureza é rejeitada** — é o caso que
+  tem valor, os outros dois continuariam passando se a validação sumisse.
+- Compra: o frete rateado chega ao **custo gravado no lote** (220 e 110 sobre bruto de
+  200 e 100 com frete 30), não só à prévia. É o elo entre cálculo e estoque.
+- Abertura de box: origem baixa exatamente 1; destino nasce com a quantidade gerada; o
+  **custo consumido reaparece inteiro no destino** (abertura transforma custo, não cria
+  valor); e nenhuma linha nova em `Vendas` — abertura não é receita.
+- Venda: uma linha de lucro por sócio ativo e a **soma do atribuído fecha com o lucro
+  bruto do item**. Venda acima do saldo bloqueia.
+- Retirada: acima do limite não aprova mais que o limite; dentro do limite aprova
+  integral e **baixa o lucro disponível pelo valor exato**.
+
+**Por que E2E e não mais teste de unidade:** os asserts de retirada máxima e reserva
+mínima do `99_Testes_Socios.js` passavam sem exercitar a regra, por falta de lucro
+atribuído a alguém. Só um fluxo que gera venda de verdade coloca lucro na mesa.
+
+**Dois bugs de nome de campo pegos antes de subir** (mesma classe do NaN da sessão 5,
+agora conferidos contra a assinatura real em vez de supostos): `ProdutoService.cadastrar`
+espera `produtoGeradoPadrao` e não `produtoGerado` — teria quebrado no primeiro passo; e
+`registrarDespesa` devolve `id`, não `idDespesa`. Todo campo numérico do E2E passa por
+`_e2eNum_`, que exige número finito.
+
+**Achado não corrigido:** `testarRegistrarDespesa()` no `99_Testes_Financeiro.js` não
+passa `natureza`, que virou obrigatória. Esse teste manual antigo sempre retorna erro.
+
+**Pendente:**
+- Rodar `testarFluxoCompletoE2E()` na HML — escrito e validado, mas ainda não executado.
+- Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os
+  asserts de retirada máxima e reserva mínima finalmente exercitam a regra.
+- Seções 6 e 7 (Dashboard/gráficos e regressão pós-deploy) continuam manuais — dependem
+  de olhar o Portal.
+- Corrigir `testarRegistrarDespesa()` para passar `natureza`.
+
 ## 2026-08-31 (sessão 5 — asserts do rateio e do módulo societário)
 
 **Contexto:** a maior lacuna aberta do projeto era cobertura de teste com assert real —
