@@ -323,7 +323,17 @@ var SociosService = (function () {
     }
 
     var sociosAtivos = listarSocios(true);
-    if (sociosAtivos.length === 0) return { sucesso: true, linhas: 0, erro: null };
+    if (sociosAtivos.length === 0) {
+      // Não quebra a venda de propósito — venda válida não pode falhar
+      // por causa do cadastro de sócios. Mas o silêncio anterior era
+      // perigoso: a venda entrava, o caixa crescia e o lucro não ficava
+      // pertencendo a ninguém, sem erro nem rastro. Só se descobriria
+      // quando alguém fosse sacar. Agora fica registrado.
+      LogService.warning('SociosService', 'reconhecerLucroDaVenda',
+        'Venda ' + idVenda + ' registrada sem nenhum sócio ativo cadastrado: o lucro dela ' +
+        'NÃO foi atribuído a ninguém e não é reprocessado automaticamente.', idVenda);
+      return { sucesso: true, linhas: 0, erro: null };
+    }
 
     var linhas = [];
     var totalPorSocio = {}; // idSocio -> soma lucro atribuído nesta venda
@@ -383,6 +393,51 @@ var SociosService = (function () {
     atualizarResumoSocios();
 
     return { sucesso: true, linhas: linhas.length, erro: null };
+  }
+
+  /**
+   * Conta vendas que nunca tiveram lucro atribuído a nenhum sócio.
+   *
+   * O reconhecimento roda no momento da venda e não tem
+   * reprocessamento: uma venda gravada sem sócio ativo cadastrado
+   * (ou com falha no reconhecimento) fica com o lucro sem dono para
+   * sempre. Este contador é o detector disso — em operação normal
+   * tem que ser sempre 0.
+   *
+   * Vendas canceladas são ignoradas: não têm lucro a atribuir.
+   *
+   * Lê cada aba uma única vez.
+   *
+   * @returns {{total: number, semLucro: number, exemplos: Array<string>}}
+   */
+  function contarVendasSemLucroReconhecido() {
+    var vendas = SheetService.getDadosComoObjetos(CONFIG.ABAS.VENDAS);
+    var lucros = SheetService.getDadosComoObjetos(ABA_LUCRO_ITEM);
+
+    var comLucro = {};
+    for (var i = 0; i < lucros.length; i++) {
+      var idv = lucros[i][C_LIS.ID_VENDA];
+      if (!Utils.eVazio(idv)) comLucro[idv] = true;
+    }
+
+    var C_VENDA = CONFIG.CAMPOS.VENDAS;
+    var total = 0;
+    var semLucro = 0;
+    var exemplos = [];
+
+    for (var j = 0; j < vendas.length; j++) {
+      var v = vendas[j];
+      var id = v[C_VENDA.ID_VENDA];
+      if (Utils.eVazio(id)) continue;
+      if (Utils.normalizar(v[C_VENDA.STATUS] || '') === 'Cancelada') continue;
+      total++;
+      if (!comLucro[id]) {
+        semLucro++;
+        if (exemplos.length < 5) exemplos.push(id);
+      }
+    }
+
+    return { total: total, semLucro: semLucro, exemplos: exemplos };
   }
 
   // ============================================================
@@ -588,6 +643,7 @@ var SociosService = (function () {
     recalcularParticipacoes_:      recalcularParticipacoes_,
     registrarAporte:               registrarAporte,
     reconhecerLucroDaVenda:        reconhecerLucroDaVenda,
+    contarVendasSemLucroReconhecido: contarVendasSemLucroReconhecido,
     calcularCaixaLivre:            calcularCaixaLivre,
     calcularRetiradaMaxima:        calcularRetiradaMaxima,
     solicitarRetirada:             solicitarRetirada,

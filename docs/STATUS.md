@@ -39,9 +39,49 @@ Script todos os arquivos compartilham o mesmo escopo.
 **Nota de escopo:** os testes não foram ligados ao menu de propósito. Rodam pelo seletor
 de função do editor do Apps Script, como os demais `99_Testes_*`.
 
+**Resultado da execução na HML (31/08, 22:56):** `testarModuloSocietarioCompleto` passou,
+mas só a participação foi exercitada de verdade — 60/20/20 sobre R$ 100.000, esperado e
+planilha batendo nos três. Os outros dois passaram trivialmente: com `lucroDisponivel: 0`
+em todos, o `min()` da retirada máxima escolheu sempre essa perna e o teto da cota sobre o
+caixa livre nunca foi testado; e com `RESERVA_MINIMA_CAIXA: 0` o caixa livre é igual ao
+caixa teórico, então o assert do pior caso passou sem esforço.
+
+**Achado durante a execução — corrigido:** caixa teórico de R$ 114.520 contra R$ 100.000
+aportados, mas lucro atribuído zero para os três e `Lucro_Por_Item_Socio` vazia. Causa: o
+reconhecimento de lucro roda no momento da venda e as 19 vendas da HML foram gravadas
+antes dos sócios existirem. **Decidido não fazer backfill** — Kaique confirmou que esse
+histórico é massa de teste, e atribuir lucro fictício sobre participação real seria pior
+que deixar como está.
+
+O defeito de verdade não estava nos dados: `reconhecerLucroDaVenda` retornava
+`{sucesso: true, linhas: 0}` **em silêncio** quando não havia sócio ativo. Em PROD isso é
+dinheiro sumindo sem rastro — a venda entra, o caixa cresce, o lucro não fica pertencendo
+a ninguém, e só se descobre quando alguém for sacar. Duas correções:
+
+- `20_SociosService.js`: o retorno silencioso virou `LogService.warning`. Continua não
+  quebrando a venda de propósito (venda válida não pode falhar por cadastro de sócio),
+  mas agora deixa rastro em `Logs_Sistema`.
+- `20_SociosService.js` + `17_InstallService.js`: nova
+  `contarVendasSemLucroReconhecido()` (lê cada aba uma vez, ignora vendas canceladas) e
+  linha nova no Health Check. Em HML o número é alto por causa da massa de teste e **não**
+  reprova o health check; em PROD, qualquer valor acima de zero reprova. É o detector que
+  teria pego isso sozinho.
+- `99_Testes_Socios.js`: `testarVendasSemLucroAtribuido()` expõe o mesmo número no
+  conjunto de testes.
+
+**Correção do registro de dívida técnica:** a lista de arquivos achatados anotada na
+sessão 4 estava errada. Medido linha a linha, os realmente danificados são
+`00_Config.js`, `10_FinanceiroService.js`, `12_UiService.js` e `17_InstallService.js`
+(recuo de 1 espaço em tudo) e `Portal.html` (recuo zero, tudo na coluna 0).
+`BaseScripts.html` e `BaseStyles.html` estão corretos — foram listados por engano.
+
+**Ponto em aberto para decisão:** `RESERVA_MINIMA_CAIXA` está em 0. Quando houver lucro
+atribuído, todo o caixa fica sacável, inclusive o que seria reposição de estoque.
+
 **Pendente:**
-- Rodar `testarModuloSocietarioCompleto()` e `testarRateioCompraCompleto()` na HML — os
-  asserts nunca rodaram contra os dados reais.
+- Retirada máxima e reserva mínima só serão testadas de verdade quando existir lucro
+  atribuído a algum sócio — hoje os dois asserts passam sem exercitar a regra.
+- Rodar `testarRateioCompraCompleto()` na HML.
 - Abrir o Portal na HML e olhar o Dashboard (pendência que vem da sessão 4).
 - Testes funcionais completos (`PLANO_DE_TESTES.md`) — seções 2 a 7 seguem não executadas.
 

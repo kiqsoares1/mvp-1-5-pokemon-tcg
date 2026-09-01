@@ -205,14 +205,44 @@ function testarReservaMinimaDeCaixa() {
 }
 
 /**
- * Roda os três testes societários numa tacada só.
+ * Vendas cujo lucro nunca foi atribuído a ninguém.
+ *
+ * Não é um assert de regra — é um raio-x. O reconhecimento de lucro
+ * roda no momento da venda e não tem reprocessamento, então uma venda
+ * gravada sem sócio ativo cadastrado fica com o lucro sem dono para
+ * sempre. Em PROD, qualquer número acima de zero aqui é dinheiro que
+ * ninguém vai conseguir sacar.
+ */
+function testarVendasSemLucroAtribuido() {
+  var r = SociosService.contarVendasSemLucroReconhecido();
+
+  if (r.semLucro > r.total) {
+    _testeSociosFalhar_('contador inconsistente: órfãs acima do total de vendas', r);
+  }
+
+  var res = {
+    sucesso: true,
+    vendasConsideradas: r.total,
+    semLucroAtribuido: r.semLucro,
+    exemplos: r.exemplos,
+    observacao: r.semLucro > 0
+      ? 'Em PROD isto seria problema: o lucro destas vendas não pertence a ninguém.'
+      : 'Todas as vendas tiveram lucro atribuído.'
+  };
+  Logger.log(JSON.stringify(res, null, 2));
+  return res;
+}
+
+/**
+ * Roda os testes societários numa tacada só.
  * Somente leitura — seguro de rodar a qualquer momento.
  */
 function testarModuloSocietarioCompleto() {
   var resultados = {
     participacao: testarParticipacaoSocietaria(),
     retiradaMaxima: testarRetiradaMaxima(),
-    reservaMinima: testarReservaMinimaDeCaixa()
+    reservaMinima: testarReservaMinimaDeCaixa(),
+    vendasSemLucro: testarVendasSemLucroAtribuido()
   };
   Logger.log(JSON.stringify(resultados, null, 2));
   try {

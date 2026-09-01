@@ -309,6 +309,31 @@
  }
  });
 
+ // 6. Vendas sem lucro atribuído a nenhum sócio
+ //
+ // O reconhecimento de lucro roda no momento da venda e não tem
+ // reprocessamento. Uma venda gravada sem sócio ativo cadastrado fica
+ // com o lucro sem dono para sempre — sem erro, sem aviso. Este
+ // contador existe para que isso não passe despercebido de novo.
+ //
+ // Em HML o número costuma ser alto (massa de teste anterior ao
+ // cadastro dos sócios) e não deve reprovar o health check; em PROD
+ // qualquer valor acima de zero é problema de verdade.
+ try {
+ var ambiente = String(params.AMBIENTE || CONFIG.AMBIENTE || '').toUpperCase();
+ var orfas = SociosService.contarVendasSemLucroReconhecido();
+ relatorio.push('');
+ relatorio.push('Vendas sem lucro atribuído: ' + orfas.semLucro + '/' + orfas.total +
+ (orfas.semLucro > 0 ? ' (ex.: ' + orfas.exemplos.join(', ') + ')' : ''));
+ if (orfas.semLucro > 0 && ambiente.indexOf('PROD') === 0) {
+ relatorio.push('  ATENÇÃO: em produção este número deveria ser zero.');
+ tudoOk = false;
+ }
+ } catch (e) {
+ relatorio.push('');
+ relatorio.push('Vendas sem lucro atribuído: erro ao contar (' + e.message + ')');
+ }
+
  logInfo('17_InstallService', 'healthCheck',
  'Health check concluído. Status: ' + (tudoOk ? 'OK' : 'COM AVISOS'));
 
