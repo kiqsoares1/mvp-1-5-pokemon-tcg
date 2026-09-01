@@ -75,8 +75,13 @@ sessão 4 estava errada. Medido linha a linha, os realmente danificados são
 (recuo de 1 espaço em tudo) e `Portal.html` (recuo zero, tudo na coluna 0).
 `BaseScripts.html` e `BaseStyles.html` estão corretos — foram listados por engano.
 
-**Ponto em aberto para decisão:** `RESERVA_MINIMA_CAIXA` está em 0. Quando houver lucro
-atribuído, todo o caixa fica sacável, inclusive o que seria reposição de estoque.
+**Decisão do Kaique (31/08):** manter a retirada como está. `RESERVA_MINIMA_CAIXA` fica
+em 0 — o limite de retirada continua sendo só `min(lucro disponível, participação ×
+caixa livre)`, sem piso de caixa reservado. Fica registrado que, com reserva zerada,
+quando houver lucro atribuído todo o caixa é sacável, inclusive o que seria reposição de
+estoque. **Não reabrir esta pendência**; se um dia fizer sentido travar um piso, basta
+preencher o parâmetro em `Config_App` — o cálculo em `calcularCaixaLivre()` já o respeita,
+e `testarReservaMinimaDeCaixa()` já cobre o desconto.
 
 **Pendente:**
 - Retirada máxima e reserva mínima só serão testadas de verdade quando existir lucro
