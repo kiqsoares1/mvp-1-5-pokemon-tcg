@@ -214,7 +214,7 @@ var VendaService = (function () {
 
   function _linhaDataSerial(valor) {
     if (valor instanceof Date) return valor.getTime();
-    var parsed = Utils.parsarData(String(valor || '').split(' ')[0]);
+    var parsed = Utils.paraData(valor);
     return parsed ? parsed.getTime() : 9999999999999;
   }
 

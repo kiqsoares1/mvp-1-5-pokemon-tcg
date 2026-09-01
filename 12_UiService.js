@@ -485,7 +485,7 @@
         return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
       }
       function dataDe(valor) {
-        return Utils.parsarData(String(valor || '').split(' ')[0]);
+        return Utils.paraData(valor);
       }
 
       // Esqueleto dos últimos `qtd` meses, do mais antigo para o mais

@@ -44,7 +44,7 @@
 
  function _data(valor) {
  if (valor instanceof Date) return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
- return Utils.parsarData(String(valor || '').split(' ')[0]);
+ return Utils.paraData(valor);
  }
 
  function _entreDatas(valor, inicio, fim) {

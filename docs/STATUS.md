@@ -163,15 +163,40 @@ a falha deixa de ser invisível e vira número no diagnóstico.
 com prejuízo de −33,34 e o assert de lucro perdia o sentido. Agora o preço fica acima do
 custo do lote mais caro disponível.
 
+**Quinta execução (00:33) — a hipótese anterior estava errada, e o diagnóstico embutido na
+falha mostrou isso.** `Historico_Participacoes` tem **39 linhas**, não está vazia. E o lucro
+da venda veio positivo (40), confirmando a correção da precificação do teste.
+
+A causa real é conversão de data. `Utils.parsarData` só aceita a string `dd/mm/aaaa`, mas o
+Google Sheets converte sozinho o que parece data numa `Date` de verdade. A leitura era
+`Utils.parsarData(String(celula).split(" ")[0])` — com uma `Date`, isso vira `"Mon"` e
+devolve `null`. Nenhuma comparação de data batia, então a busca pela foto vigente caía no
+valor inicial: `registros[0]`, a foto **mais antiga**, que é a do cadastro do sócio, quando a
+participação dele ainda era 0%. Participação zero → nenhum lucro atribuído, em silêncio.
+
+Ou seja: o `return 0` corrigido antes era só metade. Mesmo com histórico cheio, o lucro
+sumia.
+
+**Corrigido:** novo `Utils.paraData(valor)`, que aceita `Date`, `dd/mm/aaaa` e
+`dd/mm/aaaa hh:mm:ss`. O mesmo padrão quebrado existia em mais seis lugares, todos lendo
+data de célula — `09_VendaService`, `10_FinanceiroService`, `11_PrecoReferenciaService`,
+`12_UiService` (série mensal do Dashboard), `14_LogService` (exportação) e o filtro de
+faturamento MEI em `20_SociosService`. Todos passaram a usar `paraData`.
+
+Em `_participacaoVigenteEm`, além da troca: se existem fotos mas **nenhuma com data
+legível**, devolve `null` (não sei) em vez de cair calado na primeira linha. Cair na foto
+mais antiga por falha de parsing era exatamente o que escondia o problema.
+
+Conferido no Node: `paraData` aceita os três formatos, devolve `null` para vazio e lixo, e
+o caminho antigo realmente devolvia `null` para uma `Date` — a causa está reproduzida, não
+suposta.
+
 **Pendente:**
-- Rodar **Sócios → Gerar Histórico de Participações** na HML e depois
-  `testarFluxoCompletoE2E()` — venda e retirada seguem sem execução completa.
-- Rodar **Sócios → Reprocessar Lucro das Vendas Pendentes** se fizer sentido para as vendas
-  antigas da HML (são massa de teste; decisão do Kaique).
+- Rodar `testarFluxoCompletoE2E()` pela sexta vez — venda e retirada seguem sem execução
+  completa. **Gerar Histórico de Participações não é mais necessário**: o histórico existe.
 - Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
   o código grava.
-- Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
-  o código grava.
+- Avaliar se o Dashboard mostrava série mensal errada pelo mesmo motivo de conversão de data.
 - Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os
   asserts de retirada máxima e reserva mínima finalmente exercitam a regra.
 - Seções 6 e 7 (Dashboard/gráficos e regressão pós-deploy) continuam manuais — dependem

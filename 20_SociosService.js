@@ -186,7 +186,7 @@ var SociosService = (function () {
    * primeiro aporte, antes do recálculo).
    */
   function _participacaoVigenteEm(idSocio, data) {
-    var dataAlvo = (data instanceof Date) ? data : Utils.parsarData(String(data || '').split(' ')[0]);
+    var dataAlvo = Utils.paraData(data);
     var registros = SheetService.buscarPorCampo(ABA_HISTORICO, C_HIST.ID_SOCIO, idSocio)
       .map(function(r) { return r.dados; })
       .filter(function(r) { return !Utils.eVazio(r[C_HIST.PARTICIPACAO_PCT]); });
@@ -197,18 +197,31 @@ var SociosService = (function () {
     // decide o que fazer com o null; ver reconhecerLucroDaVenda.
     if (registros.length === 0) return null;
 
-    registros.sort(function(a, b) {
-      var da = Utils.parsarData(String(a[C_HIST.DATA_VIGENCIA] || '').split(' ')[0]) || new Date(0);
-      var db = Utils.parsarData(String(b[C_HIST.DATA_VIGENCIA] || '').split(' ')[0]) || new Date(0);
-      return da - db;
-    });
+    // Resolve a data de cada foto uma vez só, com Utils.paraData — o
+    // Sheets devolve a Data Vigência ora como texto, ora como Date, e a
+    // leitura antiga só entendia texto. Com Date, toda comparação falhava
+    // em silêncio e a busca caía na foto mais antiga: a do cadastro do
+    // sócio, quando a participação dele ainda era 0%. Resultado: lucro
+    // nenhum atribuído, sem erro nem aviso.
+    var comData = [];
+    for (var k = 0; k < registros.length; k++) {
+      var d = Utils.paraData(registros[k][C_HIST.DATA_VIGENCIA]);
+      if (d) comData.push({ data: d, reg: registros[k] });
+    }
 
-    if (!dataAlvo) return _numero(registros[registros.length - 1][C_HIST.PARTICIPACAO_PCT]);
+    // Existem fotos, mas nenhuma com data legível: é "não sei", não zero.
+    if (comData.length === 0) return null;
 
-    var vigente = registros[0];
-    for (var i = 0; i < registros.length; i++) {
-      var dReg = Utils.parsarData(String(registros[i][C_HIST.DATA_VIGENCIA] || '').split(' ')[0]);
-      if (dReg && dReg.getTime() <= dataAlvo.getTime()) vigente = registros[i];
+    comData.sort(function(a, b) { return a.data - b.data; });
+
+    // Sem data alvo utilizável, a foto mais recente é a melhor resposta.
+    if (!dataAlvo) return _numero(comData[comData.length - 1].reg[C_HIST.PARTICIPACAO_PCT]);
+
+    // Venda anterior à primeira foto: usa a mais antiga, que é a divisão
+    // mais próxima do que valia na época.
+    var vigente = comData[0].reg;
+    for (var i = 0; i < comData.length; i++) {
+      if (comData[i].data.getTime() <= dataAlvo.getTime()) vigente = comData[i].reg;
     }
     return _numero(vigente[C_HIST.PARTICIPACAO_PCT]);
   }
@@ -740,7 +753,7 @@ var SociosService = (function () {
       var C_VENDA = CONFIG.CAMPOS.VENDAS;
       var faturamento = 0;
       vendas.forEach(function(v) {
-        var d = Utils.parsarData(String(v[C_VENDA.DATA_VENDA] || '').split(' ')[0]);
+        var d = Utils.paraData(v[C_VENDA.DATA_VENDA]);
         if (d && d.getFullYear() === anoAtual) faturamento += _numero(v[C_VENDA.VALOR_BRUTO]);
       });
       faturamento = Utils.arredondar(faturamento, 2);

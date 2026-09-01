@@ -151,7 +151,7 @@ var LogService = (function() {
       // ter milhares de linhas a limpar de uma vez).
       var fimBloco = -1; // índice de linha da planilha (1-based) do fim do bloco atual
       for (var i = dados.length - 1; i >= 0; i--) {
-        var dataLog = Utils.parsarData(String(dados[i][1]).split(' ')[0]);
+        var dataLog = Utils.paraData(dados[i][1]);
         var linhaPlanilha = i + 2; // +2: cabeçalho + 0-based
         var remover = dataLog && dataLog < limite;
 

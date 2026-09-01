@@ -114,6 +114,28 @@ var Utils = (function() {
     }
   }
 
+  /**
+   * Converte para Date o que vier de uma célula de planilha.
+   *
+   * parsarData() só aceita a string 'dd/mm/aaaa'. Mas o Google Sheets
+   * converte sozinho o que parece data numa Date de verdade, e aí a
+   * célula volta como objeto — `String(valor).split(' ')[0]` vira 'Mon' e
+   * parsarData devolve null. Quem comparava datas assim recebia null em
+   * silêncio e caía num caminho alternativo sem perceber.
+   *
+   * Aceita: Date, 'dd/mm/aaaa' e 'dd/mm/aaaa hh:mm:ss'.
+   *
+   * @param {*} valor
+   * @returns {Date|null}
+   */
+  function paraData(valor) {
+    if (valor instanceof Date) {
+      return isNaN(valor.getTime()) ? null : valor;
+    }
+    if (valor === null || valor === undefined) return null;
+    return parsarData(String(valor).trim().split(' ')[0]);
+  }
+
   // ============================================================
   // TEXTO E NORMALIZAÇÃO
   // ============================================================
@@ -376,6 +398,7 @@ var Utils = (function() {
     diasEntre:          diasEntre,
     adicionarDias:      adicionarDias,
     parsarData:         parsarData,
+    paraData:           paraData,
     normalizar:         normalizar,
     normalizarChave:    normalizarChave,
     maiusculo:          maiusculo,
