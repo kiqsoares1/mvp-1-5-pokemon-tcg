@@ -27,6 +27,12 @@ var VendaService = (function () {
   var C_PROD  = CONFIG.CAMPOS.PRODUTOS_ATIVOS;
   var C_LOG   = CONFIG.CAMPOS.LOGS_SISTEMA;
 
+  // Prefixo do log que marca uma venda efetivamente gravada. É o que a
+  // verificação de duplicidade por log procura — qualquer outro log com a
+  // mesma Referência ID (início da venda, erro de validação) não significa
+  // que a venda existe. Alterar aqui e na mensagem de sucesso juntos.
+  var MARCA_LOG_VENDA_REGISTRADA = 'Venda registrada:';
+
   var NEGOCIOS_VALIDOS = CONFIG.LISTAS.NEGOCIOS;
 
   function _normalizar(valor) {
@@ -111,9 +117,22 @@ var VendaService = (function () {
       console.warn('[09_VendaService] Falha ao verificar duplicidade em Vendas: ' + e.message);
     }
 
+    // Verificação secundária, para quando a aba Vendas não tem a coluna
+    // 'ID Requisição': procura nos logs. Só vale o log de venda REGISTRADA.
+    //
+    // Antes esta checagem aceitava QUALQUER log com esta Referência ID — e
+    // salvarVenda grava um log "Iniciando venda" com essa mesma referência
+    // logo no começo, antes de chegar aqui. O resultado é que toda venda
+    // encontrava o próprio log de início e se bloqueava como duplicada:
+    // nenhuma venda conseguia ser salva. O log de erro de validação tinha o
+    // mesmo efeito, envenenando o idRequisicao de uma tentativa que nunca
+    // chegou a gravar nada.
     try {
       var logs = SheetService.buscarPorCampo(ABA_LOGS, C_LOG.REF_ID, idRequisicao);
-      if (logs && logs.length > 0) return true;
+      for (var i = 0; i < logs.length; i++) {
+        var msg = String(logs[i].dados[C_LOG.MENSAGEM] || '');
+        if (msg.indexOf(MARCA_LOG_VENDA_REGISTRADA) === 0) return true;
+      }
     } catch (le) {
       console.warn('[09_VendaService] Falha ao verificar duplicidade em Logs: ' + le.message);
     }
@@ -498,7 +517,7 @@ var VendaService = (function () {
     }
 
     LogService.info('VendaService', 'salvarVenda',
-      'Venda registrada: ' + idVenda + ' | Itens: ' + idsItens.length + ' | Req: ' + idRequisicao,
+      MARCA_LOG_VENDA_REGISTRADA + ' ' + idVenda + ' | Itens: ' + idsItens.length + ' | Req: ' + idRequisicao,
       idRequisicao);
 
     // Reconhecimento de lucro por sócio (módulo societário, v1.6.0).

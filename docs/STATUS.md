@@ -76,9 +76,43 @@ adiante, se o box não servir.
 cai no fallback por `Logs_Sistema`, então ainda funciona, mas degradada. Corrigir exige
 mexer na estrutura da aba — commit próprio.
 
+**Segunda execução (23:33) — o E2E achou o segundo bug, e este era um bloqueio total.**
+Abertura passou (custo consumido 110, custo unitário destino 18,3333 = 110/6, preservado).
+Parou na venda com "Esta venda já foi processada anteriormente", **na primeira tentativa**.
+
+Causa: `salvarVenda` grava `LogService.info('Iniciando venda. Req: ' + idRequisicao)` com
+`Referência ID = idRequisicao` **antes** de verificar duplicidade — e a verificação
+secundária procurava justamente qualquer log com essa Referência ID. Toda venda encontrava
+o próprio log de início e se bloqueava. **Nenhuma venda conseguia ser salva.** O log de
+erro de validação tinha o mesmo efeito, envenenando o `idRequisicao` de uma tentativa que
+nunca gravou nada.
+
+`CompraService` não sofria do mesmo porque verifica antes de logar — foi por isso que a
+compra do E2E passou e a venda não.
+
+**Corrigido:** a verificação por log agora só conta o log que marca a operação
+**efetivamente gravada** (`Venda registrada:` / `Compra registrada:`, extraídos para as
+constantes `MARCA_LOG_VENDA_REGISTRADA` e `MARCA_LOG_COMPRA_REGISTRADA`, usadas tanto ao
+gravar quanto ao verificar, para não se separarem). A guarda passa a significar "já foi
+registrada" em vez de "já apareceu num log".
+
+O mesmo defeito, mais estreito, foi corrigido em `07_CompraService.js`: um log de erro
+técnico com aquela Referência ID recusaria a retentativa de uma compra que nunca entrou.
+
+**Nota:** os 19 vendas que já existiam na HML são anteriores a essa verificação por log —
+por isso o problema não tinha aparecido antes. Era um bloqueio novo, ainda não exercitado.
+
+**Terceiro achado, não corrigido:** colunas faltando em três abas, reportadas pelo
+`SheetService` durante a execução — `Compras` (Observação, ID Requisição),
+`Pokemon_Abertura_Box` (Observação) e `Movimentos_Estoque` (Subtipo Movimento, Status
+Destino, Custo Unitário Movimento). O código grava esses campos e eles são descartados em
+silêncio. Em `Compras` isso derruba a verificação primária de duplicidade para o fallback
+por log. Corrigir exige mexer na estrutura das abas — commit próprio.
+
 **Pendente:**
-- Rodar `testarFluxoCompletoE2E()` de novo depois da correção — a execução anterior parou
-  no passo de abertura, então venda e retirada seguem sem execução.
+- Rodar `testarFluxoCompletoE2E()` pela terceira vez — venda e retirada seguem sem execução.
+- Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
+  o código grava.
 - Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os
   asserts de retirada máxima e reserva mínima finalmente exercitam a regra.
 - Seções 6 e 7 (Dashboard/gráficos e regressão pós-deploy) continuam manuais — dependem

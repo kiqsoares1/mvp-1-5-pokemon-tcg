@@ -45,6 +45,11 @@ var CompraService = (function () {
   var NEGOCIO_POKEMON = 'Pokémon TCG';
   var NEGOCIOS_VALIDOS = CONFIG.LISTAS.NEGOCIOS;
 
+  // Prefixo do log que marca uma compra efetivamente gravada. É o que a
+  // verificação de duplicidade por log procura. Alterar aqui e na mensagem
+  // de sucesso juntos.
+  var MARCA_LOG_COMPRA_REGISTRADA = 'Compra registrada:';
+
   // ============================================================
   // FUNÇÕES PRIVADAS — VALIDAÇÃO
   // ============================================================
@@ -347,14 +352,21 @@ var CompraService = (function () {
 
     // Verificação secundária: Logs_Sistema (campo 'Referência ID')
     try {
+      // Só o log de compra REGISTRADA conta. Um log de erro técnico com a
+      // mesma Referência ID significa que a gravação falhou, não que ela
+      // aconteceu — contá-lo recusaria a retentativa de uma compra que
+      // nunca entrou. Mesmo defeito que travava toda venda em VendaService.
       var logs = SheetService.buscarPorCampo(
         CONFIG.ABAS.LOGS_SISTEMA,
         'Referência ID',
         idRequisicao
       );
-      if (logs && logs.length > 0) {
-        console.warn('[07_CompraService] Duplicidade detectada em Logs_Sistema: ' + idRequisicao);
-        return true;
+      for (var i = 0; i < logs.length; i++) {
+        var msg = String(logs[i].dados[CONFIG.CAMPOS.LOGS_SISTEMA.MENSAGEM] || '');
+        if (msg.indexOf(MARCA_LOG_COMPRA_REGISTRADA) === 0) {
+          console.warn('[07_CompraService] Duplicidade detectada em Logs_Sistema: ' + idRequisicao);
+          return true;
+        }
       }
     } catch (e) {
       console.warn('[07_CompraService] Erro ao verificar duplicidade em Logs_Sistema: ' + e.message);
@@ -529,7 +541,7 @@ var CompraService = (function () {
       // Log de sucesso — registra idRequisicao como Referência ID
       // CORREÇÃO v2: idRequisicao no log garante verificação secundária de duplicidade
       LogService.info('CompraService', 'salvarCompra',
-        'Compra registrada: ' + idCompra + ' | ' + rateio.itens.length + ' item(ns) | Negócio: ' + cabecalho.negocio + ' | Req: ' + idRequisicao,
+        MARCA_LOG_COMPRA_REGISTRADA + ' ' + idCompra + ' | ' + rateio.itens.length + ' item(ns) | Negócio: ' + cabecalho.negocio + ' | Req: ' + idRequisicao,
         idRequisicao);
 
       return {
