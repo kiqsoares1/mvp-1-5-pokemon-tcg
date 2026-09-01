@@ -100,11 +100,32 @@ function e2ePrepararProdutos() {
     booster = _e2eProdutoPorNome_(E2E_PRODUTO_BOOSTER);
   }
 
-  var box = _e2eProdutoPorNome_(E2E_PRODUTO_BOX);
+  // Reaproveita um box de teste anterior SÓ se ele realmente servir para
+  // abertura. Uma rodada antiga pode ter deixado um box gravado como não
+  // fracionável (foi o que o bug de comparação de 'Sim'/'sim' causava), e
+  // reaproveitá-lo faria o teste falhar num passo adiante, longe da causa.
+  // Como a planilha é protegida, não dá para corrigir o registro velho
+  // daqui — então cadastra um novo, com nome próprio.
+  var box = null;
+  var candidatos = SheetService.getDadosComoObjetos(CONFIG.ABAS.PRODUTOS_ATIVOS)
+    .filter(function(p) {
+      return String(p[C.NOME_PRODUTO] || '').indexOf(E2E_PRODUTO_BOX) === 0;
+    });
+
+  for (var i = 0; i < candidatos.length; i++) {
+    var val = ProdutoService.validarParaAbertura(candidatos[i][C.ID_PRODUTO]);
+    if (val.valido) { box = candidatos[i]; break; }
+  }
+
+  var boxReaproveitado = !!box;
   if (!box) {
+    var nomeBoxNovo = candidatos.length === 0
+      ? E2E_PRODUTO_BOX
+      : E2E_PRODUTO_BOX + ' ' + Utils.timestampCompacto();
+
     var rx = ProdutoService.cadastrar({
       negocio: E2E_NEGOCIO,
-      nomeProduto: E2E_PRODUTO_BOX,
+      nomeProduto: nomeBoxNovo,
       tipoModelo: 'Box',
       colecaoJogo: 'Coleção E2E',
       estadoCondicao: 'Novo/Lacrado',
@@ -114,14 +135,22 @@ function e2ePrepararProdutos() {
       produtoGeradoPadrao: booster[C.ID_PRODUTO]
     });
     if (!rx.sucesso) _e2eFalhar_('produtos', 'não consegui cadastrar o box de teste', rx);
-    box = _e2eProdutoPorNome_(E2E_PRODUTO_BOX);
+    box = _e2eProdutoPorNome_(nomeBoxNovo);
+  }
+
+  // Falha aqui, e não três passos adiante, se o box não servir para abrir.
+  var checagem = ProdutoService.validarParaAbertura(box[C.ID_PRODUTO]);
+  if (!checagem.valido) {
+    _e2eFalhar_('produtos', 'o box de teste não passa na validação de abertura',
+      { produto: box[C.NOME_PRODUTO], erro: checagem.erro });
   }
 
   return {
     idBox: box[C.ID_PRODUTO],
     idBooster: booster[C.ID_PRODUTO],
     nomeBox: box[C.NOME_PRODUTO],
-    nomeBooster: booster[C.NOME_PRODUTO]
+    nomeBooster: booster[C.NOME_PRODUTO],
+    boxReaproveitado: boxReaproveitado
   };
 }
 

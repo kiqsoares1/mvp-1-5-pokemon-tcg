@@ -40,8 +40,45 @@ espera `produtoGeradoPadrao` e não `produtoGerado` — teria quebrado no primei
 **Achado não corrigido:** `testarRegistrarDespesa()` no `99_Testes_Financeiro.js` não
 passa `natureza`, que virou obrigatória. Esse teste manual antigo sempre retorna erro.
 
+**Primeira execução na HML (31/08, 23:29) — o E2E achou um bug de produção sério na
+primeira tentativa.** Parou em `abertura` com "Produto não está marcado como fracionável",
+mesmo tendo acabado de cadastrar o box com `fracionavel: "Sim"`.
+
+Causa: `Utils.normalizar()` só faz trim, **preserva maiúscula** (`02_Utils.js`), e
+`06_ProdutoService.js` comparava o resultado dela com o literal minúsculo `'sim'` em
+quatro lugares. `'Sim' !== 'sim'`, sempre.
+
+O efeito é pior do que o teste mostrou. Os dois lados da regra estavam quebrados:
+- No **cadastro**, `fracionavel` virava `false` em silêncio — o produto era gravado como
+  não fracionável e `Quantidade Gerada Padrão` e `Produto Gerado Padrão` eram **descartados**
+  (viram string vazia). O `Portal.html` oferece exatamente `<option>Sim</option>`, então
+  **todo box cadastrado pelo Portal nascia quebrado**, sem nenhum erro na tela.
+- Na **validação de abertura**, o mesmo defeito lendo da planilha, que grava `'Sim'`.
+
+Ou seja: **abertura de box não funcionava para nenhum produto** — a operação central do
+negócio Pokémon. O usuário preenchia tudo, salvava com sucesso e só descobria na hora de
+abrir, com uma mensagem que apontava para o lugar errado.
+
+**Corrigido:** os quatro pontos passaram a usar `_normalizarValorProduto` (minúsculas, sem
+acento), que já existia no próprio arquivo e é o que `_eAtivo` usa. Varredura em todo o
+projeto confirmou que os outros serviços com comparação parecida já usavam helper que
+rebaixa a caixa — o defeito estava só em `06_ProdutoService.js`.
+
+**Ajuste no E2E:** `e2ePrepararProdutos` agora valida o box com `validarParaAbertura`
+antes de usar e só reaproveita um box de rodada anterior se ele realmente servir. O box
+criado na execução falha ficou gravado como não fracionável e sem quantidade gerada; como
+a planilha é protegida, não dá para consertar o registro velho pelo código, então o teste
+cadastra um novo com nome próprio. Também falha no passo de produtos, e não três passos
+adiante, se o box não servir.
+
+**Segundo achado, não corrigido:** a aba `Compras` não tem as colunas `Observação` nem
+`ID Requisição` (aviso do `SheetService` na execução). A guarda de duplicidade de compra
+cai no fallback por `Logs_Sistema`, então ainda funciona, mas degradada. Corrigir exige
+mexer na estrutura da aba — commit próprio.
+
 **Pendente:**
-- Rodar `testarFluxoCompletoE2E()` na HML — escrito e validado, mas ainda não executado.
+- Rodar `testarFluxoCompletoE2E()` de novo depois da correção — a execução anterior parou
+  no passo de abertura, então venda e retirada seguem sem execução.
 - Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os
   asserts de retirada máxima e reserva mínima finalmente exercitam a regra.
 - Seções 6 e 7 (Dashboard/gráficos e regressão pós-deploy) continuam manuais — dependem

@@ -179,7 +179,10 @@ var ProdutoService = (function () {
       return { valido: false, motivo: 'Apenas produtos Pokémon TCG podem ser fracionados.' };
     }
 
-    var fracionavel = Utils.normalizar(produto[CAMPOS.FRACIONAVEL] || '');
+    // _normalizarValorProduto (minúsculas, sem acento) e não Utils.normalizar
+    // (só trim): a planilha grava 'Sim' com maiúscula, então comparar o
+    // resultado de Utils.normalizar com 'sim' nunca bate. Ver _eAtivo.
+    var fracionavel = _normalizarValorProduto(produto[CAMPOS.FRACIONAVEL] || '');
     if (fracionavel !== 'sim') {
       return { valido: false, motivo: 'Produto não está marcado como fracionável.' };
     }
@@ -256,7 +259,7 @@ var ProdutoService = (function () {
           tipoModelo:  p[CAMPOS.TIPO_MODELO],
           estado:      p[CAMPOS.ESTADO_CONDICAO],
           colecao:     p[CAMPOS.COLECAO_JOGO],
-          fracionavel: Utils.normalizar(p[CAMPOS.FRACIONAVEL] || '') === 'sim'
+          fracionavel: _normalizarValorProduto(p[CAMPOS.FRACIONAVEL]) === 'sim'
         });
       }
     }
@@ -356,7 +359,7 @@ var ProdutoService = (function () {
 
     // --- Regras específicas de fracionamento Pokémon ---
     var ehPokemon = Utils.normalizar(dados.negocio) === Utils.normalizar(NEGOCIO_POKEMON);
-    var fracionavel = Utils.normalizar(dados.fracionavel || '') === 'sim';
+    var fracionavel = _normalizarValorProduto(dados.fracionavel) === 'sim';
 
     if (fracionavel) {
       if (!ehPokemon) {
@@ -445,7 +448,7 @@ var ProdutoService = (function () {
       colecaoJogo:  p[CAMPOS.COLECAO_JOGO],
       estado:       p[CAMPOS.ESTADO_CONDICAO],
       unidade:      p[CAMPOS.UNIDADE_CONTROLE],
-      fracionavel:  Utils.normalizar(p[CAMPOS.FRACIONAVEL] || '') === 'sim',
+      fracionavel:  _normalizarValorProduto(p[CAMPOS.FRACIONAVEL]) === 'sim',
       qtdPadrao:    parseInt(p[CAMPOS.QTD_GERADA_PADRAO] || 0, 10),
       produtoGerado: p[CAMPOS.PRODUTO_GERADO] || ''
     };
