@@ -101,9 +101,12 @@ Verificado no Node reproduzindo a projeção real de `calcularPrevia`: os três 
 devolvem `somaRateado` 30, 10 e −25, batendo com o esperado; e um teste específico confirma
 que renomear o campo de volta **quebra** o teste em vez de passar calado.
 
+**Execução final na HML (31/08, 23h):** `testarRateioCompraCompleto` passou de verdade —
+`somaRateado` 30, 10 e −25, batendo com `adicionalEsperado` nos três cenários e com o que a
+simulação no Node previu. O rateio de compra está coberto por assert real: proporção por
+valor, arredondamento sem perda de centavo e desconto maior que frete virando crédito.
+
 **Pendente:**
-- Rodar `testarRateioCompraCompleto()` de novo na HML depois desta correção — a execução
-  anterior não provou nada sobre o rateio.
 - Retirada máxima e reserva mínima só serão testadas de verdade quando existir lucro
   atribuído a algum sócio — hoje os dois asserts passam sem exercitar a regra.
 - Abrir o Portal na HML e olhar o Dashboard (pendência que vem da sessão 4).
