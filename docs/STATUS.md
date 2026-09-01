@@ -109,8 +109,20 @@ Destino, Custo Unitário Movimento). O código grava esses campos e eles são de
 silêncio. Em `Compras` isso derruba a verificação primária de duplicidade para o fallback
 por log. Corrigir exige mexer na estrutura das abas — commit próprio.
 
+**Terceira execução (23:39) — falha do teste, não do sistema.** Parou em abertura com
+"lote de origem não baixou exatamente 1 unidade | antes 2, depois 2". O assert observava o
+lote criado pela compra daquela rodada, mas `registrarAberturaPorProduto` consome o lote
+**mais antigo** por FIFO — e rodadas anteriores já tinham deixado lotes de box para trás.
+O serviço abriu o lote certo; o teste olhava o lote errado.
+
+Corrigido fotografando os lotes disponíveis antes de abrir e conferindo o lote que a
+abertura realmente consumiu. De quebra, virou um assert a mais: **a abertura tem que
+escolher o lote mais antigo disponível** — o FIFO da abertura não era testado antes. O
+custo consumido também passou a ser comparado com o custo do lote realmente aberto, e não
+com o da compra da rodada, que por FIFO pode ser outro.
+
 **Pendente:**
-- Rodar `testarFluxoCompletoE2E()` pela terceira vez — venda e retirada seguem sem execução.
+- Rodar `testarFluxoCompletoE2E()` pela quarta vez — venda e retirada seguem sem execução.
 - Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
   o código grava.
 - Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os

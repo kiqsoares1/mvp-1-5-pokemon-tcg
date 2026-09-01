@@ -314,12 +314,24 @@ function e2eCompraProdutoInativo() {
  * origem tem que reaparecer inteiro no lote de destino, e nada
  * disso pode virar receita ou lucro.
  */
-function e2eAbertura(ids, compra) {
+function e2eAbertura(ids) {
   var C = CONFIG.CAMPOS.LOTES_ESTOQUE;
   var A = CONFIG.CAMPOS.POKEMON_ABERTURA_BOX;
 
-  var loteAntes = _e2eLote_(compra.idLoteBox);
-  var dispAntes = _e2eNum_(parseFloat(loteAntes[C.QTD_DISPONIVEL]), 'loteBox.qtdDisponivel', 'abertura');
+  // Fotografa os lotes disponíveis do box ANTES de abrir.
+  //
+  // registrarAberturaPorProduto escolhe o lote mais antigo por FIFO, que
+  // não é necessariamente o que a compra desta rodada criou — rodadas
+  // anteriores deixam lotes de box para trás. Conferir o lote da compra
+  // daria falso negativo. Então o assert é sobre o lote que o serviço
+  // realmente consumiu, e de quebra confere que ele escolheu o mais antigo.
+  var disponiveisAntes = EstoqueService.listarLotesDisponiveisPorProduto(ids.idBox);
+  if (disponiveisAntes.length === 0) {
+    _e2eFalhar_('abertura', 'nenhum lote de box disponível para abrir', { idBox: ids.idBox });
+  }
+  var saldoAntesPorLote = {};
+  disponiveisAntes.forEach(function(l) { saldoAntesPorLote[l.idLote] = l.qtdDisponivel; });
+  var maisAntigoEsperado = disponiveisAntes[0].idLote;
 
   var vendasAntes = SheetService.contarLinhas(CONFIG.ABAS.VENDAS);
 
@@ -332,12 +344,25 @@ function e2eAbertura(ids, compra) {
   });
   if (!res.sucesso) _e2eFalhar_('abertura', 'abertura deveria ter sido aceita', res);
 
+  // Qual lote foi realmente consumido
+  var regAberturaOrigem = SheetService.buscarPrimeiroPorCampo(CONFIG.ABAS.POKEMON_ABERTURA_BOX,
+    A.ID_ABERTURA, res.idAbertura);
+  if (!regAberturaOrigem) _e2eFalhar_('abertura', 'linha de abertura não encontrada', res);
+  var idOrigemUsado = regAberturaOrigem.dados[A.ID_LOTE_ORIGEM];
+
+  // FIFO: tem que ter escolhido o lote mais antigo disponível
+  if (idOrigemUsado !== maisAntigoEsperado) {
+    _e2eFalhar_('abertura', 'abertura não consumiu o lote mais antigo (FIFO)',
+      { esperado: maisAntigoEsperado, consumido: idOrigemUsado });
+  }
+
   // Origem baixou exatamente 1
-  var loteDepois = _e2eLote_(compra.idLoteBox);
-  var dispDepois = _e2eNum_(parseFloat(loteDepois[C.QTD_DISPONIVEL]), 'loteBox.qtdDisponivel', 'abertura');
+  var dispAntes = _e2eNum_(saldoAntesPorLote[idOrigemUsado], 'saldoAntes do lote consumido', 'abertura');
+  var loteDepois = _e2eLote_(idOrigemUsado);
+  var dispDepois = _e2eNum_(parseFloat(loteDepois[C.QTD_DISPONIVEL]), 'loteOrigem.qtdDisponivel', 'abertura');
   if (Math.abs(dispDepois - (dispAntes - 1)) > 0.0001) {
     _e2eFalhar_('abertura', 'lote de origem não baixou exatamente 1 unidade',
-      { antes: dispAntes, depois: dispDepois });
+      { lote: idOrigemUsado, antes: dispAntes, depois: dispDepois });
   }
 
   // Destino criado com a quantidade gerada
@@ -350,16 +375,16 @@ function e2eAbertura(ids, compra) {
   }
 
   // Custo preservado: o que saiu do box tem que estar inteiro nos boosters
-  var regAbertura = SheetService.buscarPrimeiroPorCampo(CONFIG.ABAS.POKEMON_ABERTURA_BOX,
-    A.ID_ABERTURA, res.idAbertura);
-  if (!regAbertura) _e2eFalhar_('abertura', 'linha de abertura não encontrada', res);
-  var consumido = _e2eNum_(parseFloat(regAbertura.dados[A.CUSTO_TOTAL_CONSUMIDO]), 'abertura.custoConsumido', 'abertura');
-  var custoUnitDestino = _e2eNum_(parseFloat(regAbertura.dados[A.CUSTO_UNIT_DESTINO]), 'abertura.custoUnitDestino', 'abertura');
+  var consumido = _e2eNum_(parseFloat(regAberturaOrigem.dados[A.CUSTO_TOTAL_CONSUMIDO]), 'abertura.custoConsumido', 'abertura');
+  var custoUnitDestino = _e2eNum_(parseFloat(regAberturaOrigem.dados[A.CUSTO_UNIT_DESTINO]), 'abertura.custoUnitDestino', 'abertura');
   var recomposto = Utils.arredondar(custoUnitDestino * E2E_BOOSTERS_POR_BOX, 2);
 
-  if (Math.abs(consumido - compra.custoUnitBox) > 0.01) {
-    _e2eFalhar_('abertura', 'custo consumido deveria ser o custo unitário do box',
-      { esperado: compra.custoUnitBox, encontrado: consumido });
+  // Referência é o custo do lote realmente consumido, não o da compra desta
+  // rodada — por FIFO podem ser lotes diferentes.
+  var custoUnitOrigem = _e2eNum_(parseFloat(loteDepois[C.CUSTO_UNIT]), 'loteOrigem.custoUnit', 'abertura');
+  if (Math.abs(consumido - custoUnitOrigem) > 0.01) {
+    _e2eFalhar_('abertura', 'custo consumido deveria ser o custo unitário do lote de origem × 1',
+      { esperado: custoUnitOrigem, encontrado: consumido });
   }
   if (Math.abs(recomposto - consumido) > 0.02) {
     _e2eFalhar_('abertura', 'custo não foi preservado na abertura: o que saiu do box não bate com o que entrou nos boosters',
@@ -573,7 +598,7 @@ function testarFluxoCompletoE2E() {
     resultados.despesas = e2eDespesas();
     resultados.compra = e2eCompra(resultados.produtos);
     resultados.compraProdutoInativo = e2eCompraProdutoInativo();
-    resultados.abertura = e2eAbertura(resultados.produtos, resultados.compra);
+    resultados.abertura = e2eAbertura(resultados.produtos);
     resultados.venda = e2eVenda(resultados.produtos, resultados.abertura);
     resultados.vendaSaldoInsuficiente = e2eVendaSaldoInsuficiente(resultados.produtos);
     resultados.retiradas = e2eRetiradas();
