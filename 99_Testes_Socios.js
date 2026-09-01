@@ -29,6 +29,23 @@ function _testeSociosFalhar_(mensagem, contexto) {
 }
 
 /**
+ * Exige número finito antes de comparar.
+ *
+ * Mesmo cuidado do 99_Testes_Compra.js: `NaN` e `undefined` passam em
+ * qualquer comparação (`Math.abs(NaN - x) > tol` é false), então um
+ * campo ausente deixaria todos os asserts verdes sem conferir nada.
+ * Aqui o risco é menor — `Utils.parsarMoeda` devolve 0 em vez de NaN —
+ * mas o custo de garantir é zero e a falha silenciosa é cara demais.
+ */
+function _testeSociosExigirNumero_(valor, ondeVeio) {
+  if (typeof valor !== 'number' || !isFinite(valor)) {
+    _testeSociosFalhar_('valor não numérico onde se esperava número — campo ausente, ' +
+      'renomeado ou NaN', { origem: ondeVeio, valor: String(valor), tipo: typeof valor });
+  }
+  return valor;
+}
+
+/**
  * Participação de cada sócio ativo = Total Aportado dele / Total
  * Aportado geral, e a soma das participações fecha em 100%.
  *
@@ -62,6 +79,8 @@ function testarParticipacaoSocietaria() {
   var detalhe = [];
 
   ativos.forEach(function(s) {
+    _testeSociosExigirNumero_(s.totalAportado, s.nome + '.totalAportado');
+    _testeSociosExigirNumero_(s.participacaoAtual, s.nome + '.participacaoAtual');
     var esperado = Utils.arredondar(s.totalAportado / totalGeral, 6);
     somaPct += s.participacaoAtual;
     detalhe.push({
@@ -107,13 +126,15 @@ function testarRetiradaMaxima() {
     return { sucesso: false, erro: 'Pré-condição ausente: nenhum sócio ativo cadastrado.' };
   }
 
-  var caixaLivre = SociosService.calcularCaixaLivre();
+  var caixaLivre = _testeSociosExigirNumero_(SociosService.calcularCaixaLivre(), 'calcularCaixaLivre()');
   var detalhe = [];
 
   ativos.forEach(function(s) {
+    _testeSociosExigirNumero_(s.lucroDisponivel, s.nome + '.lucroDisponivel');
     var cota = Utils.arredondar(s.participacaoAtual * caixaLivre, 2);
     var esperado = Math.max(0, Math.min(s.lucroDisponivel, cota));
-    var obtido = SociosService.calcularRetiradaMaxima(s.idSocio);
+    var obtido = _testeSociosExigirNumero_(
+      SociosService.calcularRetiradaMaxima(s.idSocio), 'calcularRetiradaMaxima(' + s.nome + ')');
 
     detalhe.push({
       socio: s.nome,
@@ -159,11 +180,12 @@ function testarRetiradaMaxima() {
  */
 function testarReservaMinimaDeCaixa() {
   var resumo = FinanceiroService.calcularResumoFinanceiro({});
-  var caixaTeorico = (resumo.totais && resumo.totais.caixaTeoricoAproximado) || 0;
+  var caixaTeorico = _testeSociosExigirNumero_(
+    (resumo.totais && resumo.totais.caixaTeoricoAproximado) || 0, 'caixaTeoricoAproximado');
 
   var reserva = _testeSociosNumero_(SheetService.lerConfigApp('RESERVA_MINIMA_CAIXA'));
   var esperado = Math.max(0, Utils.arredondar(caixaTeorico - reserva, 2));
-  var caixaLivre = SociosService.calcularCaixaLivre();
+  var caixaLivre = _testeSociosExigirNumero_(SociosService.calcularCaixaLivre(), 'calcularCaixaLivre()');
 
   if (Math.abs(caixaLivre - esperado) > 0.01) {
     _testeSociosFalhar_('caixa livre não desconta a reserva mínima corretamente', {

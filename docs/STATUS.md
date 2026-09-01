@@ -83,10 +83,29 @@ estoque. **Não reabrir esta pendência**; se um dia fizer sentido travar um pis
 preencher o parâmetro em `Config_App` — o cálculo em `calcularCaixaLivre()` já o respeita,
 e `testarReservaMinimaDeCaixa()` já cobre o desconto.
 
+**Bug no próprio teste, pego na execução na HML (31/08, 23h):** `testarRateioCompraCompleto`
+voltou verde, mas com `"somaRateado": null` nos três cenários. `JSON.stringify` transforma
+`NaN` em `null` — e **`NaN` passa em qualquer comparação**: `Math.abs(NaN - 30) > 0.005` é
+`false`, então nenhum assert disparava. Causa: o teste lia `custoAdicionalRateado` (nome
+interno do `_calcularRateio`) em vez de `custoRateado`, que é o nome que `calcularPrevia`
+realmente expõe na projeção pública (`07_CompraService.js`, ~linha 602). Campo inexistente
+→ `undefined` → soma vira `NaN`. Só o assert de `custoTotal` funcionava de verdade (e esse
+passou: 330, 160 e 375 corretos).
+
+Corrigido em dois níveis: o nome do campo, e — mais importante — o buraco. Agora toda
+leitura de campo numérico passa por `_testeCompraExigirNumero_` / `_testeSociosExigirNumero_`,
+que **exigem número finito** e quebram alto se o campo sumir ou for renomeado. Sem isso, um
+assert que não testa nada é pior que assert nenhum: dá sensação de cobertura.
+
+Verificado no Node reproduzindo a projeção real de `calcularPrevia`: os três cenários agora
+devolvem `somaRateado` 30, 10 e −25, batendo com o esperado; e um teste específico confirma
+que renomear o campo de volta **quebra** o teste em vez de passar calado.
+
 **Pendente:**
+- Rodar `testarRateioCompraCompleto()` de novo na HML depois desta correção — a execução
+  anterior não provou nada sobre o rateio.
 - Retirada máxima e reserva mínima só serão testadas de verdade quando existir lucro
   atribuído a algum sócio — hoje os dois asserts passam sem exercitar a regra.
-- Rodar `testarRateioCompraCompleto()` na HML.
 - Abrir o Portal na HML e olhar o Dashboard (pendência que vem da sessão 4).
 - Testes funcionais completos (`PLANO_DE_TESTES.md`) — seções 2 a 7 seguem não executadas.
 

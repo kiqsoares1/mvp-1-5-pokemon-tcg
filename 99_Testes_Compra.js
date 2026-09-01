@@ -31,6 +31,27 @@ function _testeCompraFalhar_(mensagem, contexto) {
 }
 
 /**
+ * Exige que o valor seja um número finito antes de compará-lo.
+ *
+ * Existe por causa de um bug real deste próprio arquivo: a primeira
+ * versão lia `custoAdicionalRateado` (nome interno do _calcularRateio)
+ * em vez de `custoRateado` (nome que calcularPrevia realmente expõe).
+ * O campo vinha `undefined`, a soma virava NaN, e **NaN passa em
+ * qualquer comparação** — `Math.abs(NaN - 30) > 0.005` é false. Os
+ * asserts ficaram verdes sem conferir nada.
+ *
+ * Toda leitura de campo numérico da prévia passa por aqui agora: se o
+ * campo sumir ou for renomeado, o teste quebra alto em vez de mentir.
+ */
+function _testeCompraExigirNumero_(valor, ondeVeio) {
+  if (typeof valor !== 'number' || !isFinite(valor)) {
+    _testeCompraFalhar_('valor não numérico onde se esperava número — campo ausente, ' +
+      'renomeado ou NaN', { origem: ondeVeio, valor: String(valor), tipo: typeof valor });
+  }
+  return valor;
+}
+
+/**
  * Procura um produto ativo do negócio informado para servir de
  * massa de teste. Retorna null se não houver — o teste vira
  * "pré-condição ausente" em vez de falha.
@@ -78,11 +99,19 @@ function _testeCompraConferirInvariantes_(previa, frete, taxas, desconto, rotulo
   var somaBruta = 0;
   var somaTotalFinal = 0;
 
+  if (previa.itensCalculados.length === 0) {
+    _testeCompraFalhar_(rotulo + ': prévia voltou sem itens calculados', previa);
+  }
+  _testeCompraExigirNumero_(previa.custoTotal, rotulo + '.custoTotal');
+
   for (var i = 0; i < previa.itensCalculados.length; i++) {
     var it = previa.itensCalculados[i];
-    somaRateado    += it.custoAdicionalRateado;
-    somaBruta      += it.valorTotalBruto;
-    somaTotalFinal += it.custoTotalFinal;
+    // Nomes conforme a projeção pública de calcularPrevia — NÃO os nomes
+    // internos do _calcularRateio. Ver _testeCompraExigirNumero_.
+    somaRateado    += _testeCompraExigirNumero_(it.custoRateado,     rotulo + '[' + i + '].custoRateado');
+    somaBruta      += _testeCompraExigirNumero_(it.valorTotalBruto,  rotulo + '[' + i + '].valorTotalBruto');
+    somaTotalFinal += _testeCompraExigirNumero_(it.custoTotalFinal,  rotulo + '[' + i + '].custoTotalFinal');
+    _testeCompraExigirNumero_(it.custoUnitFinal, rotulo + '[' + i + '].custoUnitFinal');
 
     // Custo unitário final tem que ser coerente com o total do item.
     // Se este assert quebrar, o Lote_Estoque nasce com custo errado e
@@ -154,11 +183,11 @@ function testarRateioCompraProporcional() {
   // 20 para o item A e 10 para o B. Um bug que ratear "por item" em vez
   // de "por valor" passaria nos invariantes de soma, mas não aqui.
   var itens = previa.itensCalculados;
-  if (Math.abs(itens[0].custoAdicionalRateado - 20) > 0.01 ||
-      Math.abs(itens[1].custoAdicionalRateado - 10) > 0.01) {
+  if (Math.abs(itens[0].custoRateado - 20) > 0.01 ||
+      Math.abs(itens[1].custoRateado - 10) > 0.01) {
     _testeCompraFalhar_('rateio não ficou proporcional ao valor bruto (esperado 20 / 10)', {
-      itemA: itens[0].custoAdicionalRateado,
-      itemB: itens[1].custoAdicionalRateado
+      itemA: itens[0].custoRateado,
+      itemB: itens[1].custoRateado
     });
   }
 
@@ -215,9 +244,9 @@ function testarRateioCompraDescontoMaiorQueFrete() {
     _testeCompraFalhar_('cenário mal montado: o adicional deveria ser negativo', res);
   }
   for (var i = 0; i < previa.itensCalculados.length; i++) {
-    if (previa.itensCalculados[i].custoAdicionalRateado > 0) {
+    if (previa.itensCalculados[i].custoRateado > 0) {
       _testeCompraFalhar_('com desconto maior que frete+taxas, o rateado de cada item deveria ser negativo', {
-        item: i, valor: previa.itensCalculados[i].custoAdicionalRateado
+        item: i, valor: previa.itensCalculados[i].custoRateado
       });
     }
   }
