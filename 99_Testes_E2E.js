@@ -417,7 +417,19 @@ function e2eAbertura(ids) {
 function e2eVenda(ids, abertura) {
   var C_LIS = CONFIG.CAMPOS.LUCRO_POR_ITEM_SOCIO;
 
-  var precoUnit = Utils.arredondar(abertura.custoUnitDestino + 20, 2);
+  // Preço acima do custo do lote MAIS CARO disponível, não do lote que a
+  // abertura acabou de criar: o FIFO da venda consome o booster mais
+  // antigo, que pode ter custo bem diferente (o comprado sai a 55, o
+  // aberto a 18,33). Precificar pelo lote errado produzia venda com
+  // prejuízo e um assert de lucro que não fazia sentido.
+  var disponiveis = EstoqueService.listarLotesDisponiveisPorProduto(ids.idBooster);
+  if (disponiveis.length === 0) {
+    _e2eFalhar_('venda', 'nenhum lote de booster disponível para vender', { idBooster: ids.idBooster });
+  }
+  var custoMaisAlto = 0;
+  disponiveis.forEach(function(l) { if (l.custoUnit > custoMaisAlto) custoMaisAlto = l.custoUnit; });
+
+  var precoUnit = Utils.arredondar(custoMaisAlto + 20, 2);
   var qtd = 2;
 
   var res = VendaService.salvarVenda({
@@ -433,7 +445,22 @@ function e2eVenda(ids, abertura) {
   // Lucro reconhecido por sócio
   var linhas = SheetService.buscarPorCampo(CONFIG.ABAS.LUCRO_POR_ITEM_SOCIO, C_LIS.ID_VENDA, res.idVenda);
   if (linhas.length === 0) {
-    _e2eFalhar_('venda', 'venda não gerou nenhuma linha em Lucro_Por_Item_Socio — o lucro ficou sem dono', res);
+    // Diagnóstico junto da falha: a causa quase sempre é participação
+    // vigente zero, e ela vem de Historico_Participacoes — que só é
+    // preenchida por cadastrarSocio e registrarAporte. Sócio cujo aporte
+    // foi digitado direto na planilha não tem histórico, e aí o lucro
+    // não é atribuído a ninguém, em silêncio.
+    var hist = SheetService.getDadosComoObjetos(CONFIG.ABAS.HISTORICO_PARTICIPACOES);
+    _e2eFalhar_('venda',
+      'venda não gerou nenhuma linha em Lucro_Por_Item_Socio — o lucro ficou sem dono', {
+        venda: res.idVenda,
+        lucroBrutoDaVenda: res.totais ? res.totais.lucroBruto : null,
+        sociosAtivos: SociosService.listarSocios(true).length,
+        linhasEmHistoricoParticipacoes: hist.length,
+        pista: hist.length === 0
+          ? 'Historico_Participacoes está VAZIA: a participação vigente na data da venda vem 0 e ninguém recebe lucro.'
+          : 'Historico_Participacoes tem linhas; conferir se a Data Vigência é anterior ou igual à data da venda.'
+      });
   }
 
   var ativos = SociosService.listarSocios(true);
