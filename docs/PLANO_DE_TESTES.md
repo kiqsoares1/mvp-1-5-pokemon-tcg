@@ -11,6 +11,18 @@ resultado (✅/❌/⚠️) e data a cada rodada, num `STATUS.md` ou direto neste
 - [ ] "Validar Estrutura Completa" retorna todos os itens ✅ (abas, cabeçalhos,
       Config_App, grupos de Configuracoes).
 
+## 1b. Asserts automatizados (rodar no editor do Apps Script)
+
+Estes rodam sozinhos e **estouram exceção** quando a regra quebra — não dependem de
+alguém ler o log. Rodar depois de qualquer mexida em cálculo:
+
+- [ ] `testarModuloSocietarioCompleto()` — participação proporcional ao aportado, soma
+      fechando em 100%, retirada máxima limitada pelos dois tetos e reserva mínima de
+      caixa intacta mesmo se todos sacarem o máximo junto. **Somente leitura.**
+- [ ] `testarRateioCompraCompleto()` — rateio de frete/taxas/desconto proporcional ao
+      valor de cada item, sem perder centavo no arredondamento, e desconto maior que o
+      frete gerando crédito. Usa `calcularPrevia`, **não grava nada**.
+
 ## 2. Sócios
 
 - [ ] Cadastrar os 3 sócios padrão (Kaique, Samuel, Lucas), participação inicial 0%.

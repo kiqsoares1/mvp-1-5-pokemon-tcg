@@ -4,6 +4,47 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-08-31 (sessão 5 — asserts do rateio e do módulo societário)
+
+**Contexto:** a maior lacuna aberta do projeto era cobertura de teste com assert real —
+fora dos dois testes de venda, os cálculos que decidem dinheiro não tinham nenhum. Um bug
+em rateio ou em participação passava despercebido porque o resultado ia só para um log
+que ninguém é obrigado a ler.
+
+**Feito — dois arquivos novos, ambos sem efeito colateral na planilha:**
+
+- `99_Testes_Compra.js`: asserts do rateio via `CompraService.calcularPrevia` (que só
+  calcula, não grava). Três cenários — rateio proporcional ao valor bruto de cada item
+  (frete 30 sobre 200/100 tem que sair 20/10); divisão não exata (10 entre 3 itens iguais
+  → 3,33/3,33/3,34, o último absorve o centavo); e desconto maior que frete+taxas, onde o
+  adicional líquido fica negativo e tem que virar crédito, não débito. O invariante
+  central é que **nenhum centavo evapora nem aparece do nada**: a soma do rateado tem que
+  dar exatamente Frete + Taxas − Desconto.
+- `99_Testes_Socios.js`: asserts do módulo societário, **somente leitura**. Participação
+  de cada sócio = aportado dele / aportado geral e soma fechando em 100%; retirada máxima
+  = menor entre lucro disponível e cota sobre o caixa livre, nunca negativa e nunca acima
+  de nenhum dos dois tetos; caixa livre descontando a reserva mínima. O assert que mais
+  importa é o último: **se todos os sócios sacarem o máximo no mesmo dia, o total não
+  pode invadir a reserva mínima de caixa.**
+
+Sem aportes registrados, participação zerada é tratada como estado correto, não como
+falha — sociedade que ainda não começou não é bug.
+
+**Validação:** o `_calcularRateio` real foi extraído de `07_CompraService.js` e executado
+no Node contra os três cenários, para confirmar que os números esperados nos asserts são
+os que o código realmente produz (incluindo o 3,33/3,33/3,34). Todos bateram. Sintaxe dos
+dois arquivos validada e conferido que não há colisão de nome de função global — em Apps
+Script todos os arquivos compartilham o mesmo escopo.
+
+**Nota de escopo:** os testes não foram ligados ao menu de propósito. Rodam pelo seletor
+de função do editor do Apps Script, como os demais `99_Testes_*`.
+
+**Pendente:**
+- Rodar `testarModuloSocietarioCompleto()` e `testarRateioCompraCompleto()` na HML — os
+  asserts nunca rodaram contra os dados reais.
+- Abrir o Portal na HML e olhar o Dashboard (pendência que vem da sessão 4).
+- Testes funcionais completos (`PLANO_DE_TESTES.md`) — seções 2 a 7 seguem não executadas.
+
 ## 2026-08-31 (sessão 4 — gráficos no Dashboard do Portal)
 
 **Pedido do Kaique:** o Dashboard não mostrava gráficos. Levantamento confirmou que **não
