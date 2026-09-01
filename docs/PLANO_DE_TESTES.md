@@ -58,6 +58,17 @@ resultado (✅/❌/⚠️) e data a cada rodada, num `STATUS.md` ou direto neste
 - [ ] Simulando/forçando faturamento ≥ 80% do teto → card de alerta aparece, não bloqueia
       nenhuma operação.
 
+- [ ] Gráfico "Evolução mensal": 12 meses no eixo, sem buraco no meio da série. Um mês
+      sem movimento deve aparecer zerado, não sumir.
+- [ ] Rosca "Participação dos sócios": os percentuais batem com os da tela de Sócios.
+      Divergência aqui é erro de cálculo, não de desenho.
+- [ ] Rosca "Onde está o dinheiro": estoque + caixa livre batem com os cards de número
+      do próprio Dashboard.
+- [ ] Barra "Faturamento × teto MEI": mostra o mesmo valor do card de alerta que já
+      existia antes dos gráficos.
+- [ ] Planilha sem movimento no período → cards mostram mensagem de "sem dados", não
+      eixo vazio nem `NaN`.
+
 ## 7. Regressão rápida pós-deploy (clasp push)
 
 - [ ] Depois de qualquer `clasp push`, abrir o Portal e confirmar que carrega sem erro no

@@ -58,8 +58,9 @@ foi escrito indentado de propósito, para não propagar o estrago. Reindentar os
 um diff grande e merece commit próprio.
 
 **Pendente:**
-- `clasp push` e verificação do Dashboard ao vivo na HML — os gráficos ainda não foram
-  vistos rodando contra dados reais.
+- ~~`clasp push`~~ feito em 31/08 às 00:10 (30 arquivos) e commit `5631fc2` empurrado
+  para o GitHub. Falta **abrir o Portal na HML e olhar o Dashboard** — os gráficos ainda
+  não foram vistos rodando contra dados reais, só contra dados fictícios.
 - Testes funcionais completos (ver `PLANO_DE_TESTES.md`) — continuam não executados.
 - Cobertura de assert real fora dos dois testes de venda: rateio de compra, participação
   societária, retirada máxima e reserva mínima de caixa.
