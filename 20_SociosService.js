@@ -191,7 +191,11 @@ var SociosService = (function () {
       .map(function(r) { return r.dados; })
       .filter(function(r) { return !Utils.eVazio(r[C_HIST.PARTICIPACAO_PCT]); });
 
-    if (registros.length === 0) return 0;
+    // Sem nenhuma foto de participação para este sócio, a resposta honesta
+    // é "não sei", e não "zero". Devolver 0 fazia o lucro da venda não ser
+    // atribuído a ninguém — sem erro, sem aviso, sem pendência. Quem chama
+    // decide o que fazer com o null; ver reconhecerLucroDaVenda.
+    if (registros.length === 0) return null;
 
     registros.sort(function(a, b) {
       var da = Utils.parsarData(String(a[C_HIST.DATA_VIGENCIA] || '').split(' ')[0]) || new Date(0);
@@ -342,9 +346,30 @@ var SociosService = (function () {
     // venda (mesma dataVenda) — calcular uma vez aqui evita reler
     // Historico_Participacoes inteiro (itens × sócios) vezes por venda.
     var pctPorSocio = {};
+    var semFoto = [];
     sociosAtivos.forEach(function(s) {
-      pctPorSocio[s.idSocio] = _participacaoVigenteEm(s.idSocio, dataVenda);
+      var pct = _participacaoVigenteEm(s.idSocio, dataVenda);
+      if (pct === null) semFoto.push(s.nome);
+      pctPorSocio[s.idSocio] = pct;
     });
+
+    // Se algum sócio ativo não tem participação vigente na data, o rateio
+    // do lucro sairia errado para todo mundo — não dá para dividir 100%
+    // ignorando quem ficou de fora. Aborta o reconhecimento inteiro e
+    // registra alto, em vez de gravar uma divisão que não fecha.
+    //
+    // A venda NÃO é desfeita de propósito: ela já aconteceu, o dinheiro já
+    // entrou, e recusá-la deixaria o fato sem onde ser registrado. O lucro
+    // fica pendente e é recuperável — 'Reprocessar Lucro das Vendas
+    // Pendentes' no menu Sócios refaz o cálculo depois que o histórico for
+    // gerado, e o Health Check conta quantas vendas estão nessa situação.
+    if (semFoto.length > 0) {
+      LogService.error('SociosService', 'reconhecerLucroDaVenda',
+        'Lucro da venda ' + idVenda + ' NÃO foi atribuído: sem participação vigente em ' +
+        dataVenda + ' para ' + semFoto.join(', ') + '. Gere o histórico de participações ' +
+        '(menu Sócios) e reprocesse as vendas pendentes.', idVenda);
+      return { sucesso: false, linhas: 0, erro: 'Sem participação vigente para: ' + semFoto.join(', ') };
+    }
 
     itensDaVenda.forEach(function(item) {
       var lucroItem = _numero(item.lucroBrutoItem);
@@ -393,6 +418,105 @@ var SociosService = (function () {
     atualizarResumoSocios();
 
     return { sucesso: true, linhas: linhas.length, erro: null };
+  }
+
+  /**
+   * Gera a foto de participação de hoje a partir do estado atual da aba
+   * Socios.
+   *
+   * Existe para o caso do aporte lançado direto na planilha: ele muda o
+   * Total Aportado mas não passa por registrarAporte, então nenhuma foto é
+   * tirada — e o reconhecimento de lucro fica sem base para dividir.
+   *
+   * Não inventa histórico retroativo: grava a vigência de hoje. Vendas
+   * anteriores a esta data continuam sem foto própria e usam a primeira
+   * disponível, que é o comportamento de _participacaoVigenteEm.
+   *
+   * @returns {{sucesso: boolean, linhas: number, jaHavia: number}}
+   */
+  function gerarHistoricoParticipacoesAtual(motivo) {
+    var antes = SheetService.getDadosComoObjetos(ABA_HISTORICO).length;
+    recalcularParticipacoes_(Utils.formatarData(new Date()),
+      motivo || 'Geração manual do histórico de participações');
+    var depois = SheetService.getDadosComoObjetos(ABA_HISTORICO).length;
+
+    LogService.info('SociosService', 'gerarHistoricoParticipacoesAtual',
+      'Histórico de participações gerado. Linhas antes: ' + antes + ' | depois: ' + depois, '');
+
+    return { sucesso: true, linhas: depois - antes, jaHavia: antes };
+  }
+
+  /**
+   * Refaz o reconhecimento de lucro das vendas que ficaram sem atribuição.
+   *
+   * Seguro de rodar mais de uma vez: reconhecerLucroDaVenda tem trava por
+   * ID Venda, então uma venda que já tem lucro atribuído é ignorada — não
+   * há risco de dobrar o lucro de ninguém.
+   *
+   * O lucro bruto de cada item vem de Itens_Venda, gravado na hora da
+   * venda, então o valor reprocessado é o mesmo que teria sido usado na
+   * época — não recalcula custo nem preço.
+   *
+   * @returns {{vendasReprocessadas: number, linhasCriadas: number, falhas: Array}}
+   */
+  function reprocessarVendasSemLucro() {
+    var C_VENDA = CONFIG.CAMPOS.VENDAS;
+    var C_ITEM = CONFIG.CAMPOS.ITENS_VENDA;
+
+    var vendas = SheetService.getDadosComoObjetos(CONFIG.ABAS.VENDAS);
+    var itens = SheetService.getDadosComoObjetos(CONFIG.ABAS.ITENS_VENDA);
+    var lucros = SheetService.getDadosComoObjetos(ABA_LUCRO_ITEM);
+
+    var jaTemLucro = {};
+    lucros.forEach(function(l) {
+      var idv = l[C_LIS.ID_VENDA];
+      if (!Utils.eVazio(idv)) jaTemLucro[idv] = true;
+    });
+
+    // Agrupa itens por venda numa passada — evita varrer Itens_Venda
+    // inteiro uma vez por venda pendente.
+    var itensPorVenda = {};
+    itens.forEach(function(it) {
+      var idv = it[C_ITEM.ID_VENDA];
+      if (Utils.eVazio(idv)) return;
+      if (!itensPorVenda[idv]) itensPorVenda[idv] = [];
+      itensPorVenda[idv].push({
+        idItemVenda: it[C_ITEM.ID_ITEM],
+        lucroBrutoItem: _numero(it[C_ITEM.LUCRO_BRUTO])
+      });
+    });
+
+    var reprocessadas = 0;
+    var linhasCriadas = 0;
+    var falhas = [];
+
+    for (var i = 0; i < vendas.length; i++) {
+      var v = vendas[i];
+      var idVenda = v[C_VENDA.ID_VENDA];
+      if (Utils.eVazio(idVenda)) continue;
+      if (jaTemLucro[idVenda]) continue;
+      if (Utils.normalizar(v[C_VENDA.STATUS] || '') === 'Cancelada') continue;
+
+      var itensDaVenda = itensPorVenda[idVenda];
+      if (!itensDaVenda || itensDaVenda.length === 0) {
+        falhas.push({ idVenda: idVenda, erro: 'Venda sem itens em Itens_Venda.' });
+        continue;
+      }
+
+      var res = reconhecerLucroDaVenda(idVenda, v[C_VENDA.DATA_VENDA], itensDaVenda);
+      if (res && res.sucesso) {
+        reprocessadas++;
+        linhasCriadas += (res.linhas || 0);
+      } else {
+        falhas.push({ idVenda: idVenda, erro: (res && res.erro) || 'Falha desconhecida.' });
+      }
+    }
+
+    LogService.info('SociosService', 'reprocessarVendasSemLucro',
+      'Vendas reprocessadas: ' + reprocessadas + ' | Linhas criadas: ' + linhasCriadas +
+      ' | Falhas: ' + falhas.length, '');
+
+    return { vendasReprocessadas: reprocessadas, linhasCriadas: linhasCriadas, falhas: falhas };
   }
 
   /**
@@ -644,6 +768,8 @@ var SociosService = (function () {
     registrarAporte:               registrarAporte,
     reconhecerLucroDaVenda:        reconhecerLucroDaVenda,
     contarVendasSemLucroReconhecido: contarVendasSemLucroReconhecido,
+    gerarHistoricoParticipacoesAtual: gerarHistoricoParticipacoesAtual,
+    reprocessarVendasSemLucro:     reprocessarVendasSemLucro,
     calcularCaixaLivre:            calcularCaixaLivre,
     calcularRetiradaMaxima:        calcularRetiradaMaxima,
     solicitarRetirada:             solicitarRetirada,

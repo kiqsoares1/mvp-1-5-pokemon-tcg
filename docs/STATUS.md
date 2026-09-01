@@ -121,8 +121,55 @@ escolher o lote mais antigo disponível** — o FIFO da abertura não era testad
 custo consumido também passou a ser comparado com o custo do lote realmente aberto, e não
 com o da compra da rodada, que por FIFO pode ser outro.
 
+**Quarta execução (23:42) — a venda gravou (o bug de duplicidade estava resolvido), mas o
+lucro não foi atribuído a ninguém.** Terceiro bug de produção, e o mais silencioso dos três.
+
+`reconhecerLucroDaVenda` não usa a participação da aba `Socios`: usa
+`_participacaoVigenteEm(idSocio, dataVenda)`, que lê a aba `Historico_Participacoes` — a
+"foto" de como a sociedade estava dividida em cada data. Isso é correto e importante: uma
+venda de março tem que ser rateada pela divisão de março, senão um aporte feito depois
+transferiria retroativamente lucro que já era de outro sócio.
+
+O problema é o que acontecia quando não havia foto: `return 0`. Zero significa "este sócio
+não tem direito a nada", então **o lucro da venda não ia para ninguém** — sem erro, sem
+aviso, sem pendência. E a foto só é tirada por `cadastrarSocio` e `registrarAporte`: aporte
+digitado direto na planilha muda o Total Aportado e não tira foto nenhuma. Foi o que houve
+na HML, e é a explicação real do `Lucro_Por_Item_Socio` vazio — não a hipótese anterior de
+que as vendas eram anteriores ao módulo societário.
+
+**Decisão do Kaique:** não bloquear a venda. A venda é um fato consumado — recusar o
+registro não desfaz a venda, só deixa o fato sem onde ser registrado, e pune quem está no
+balcão por um problema de cadastro que ele não pode resolver. O lucro fica pendente e
+recuperável.
+
+**Implementado:**
+- `_participacaoVigenteEm` devolve `null` (não sei) em vez de `0` (não tem direito).
+- `reconhecerLucroDaVenda` aborta o reconhecimento inteiro se **qualquer** sócio ativo
+  estiver sem foto — dividir 100% ignorando quem ficou de fora daria rateio errado para
+  todos — e grava `LogService.error` nomeando os sócios e a data. A venda segue gravada.
+- `gerarHistoricoParticipacoesAtual()` + item de menu **Sócios → Gerar Histórico de
+  Participações**: grava a foto de hoje a partir da aba `Socios`, com confirmação mostrando
+  os percentuais antes de gravar. Não inventa histórico retroativo.
+- `reprocessarVendasSemLucro()` + item de menu **Sócios → Reprocessar Lucro das Vendas
+  Pendentes**: refaz o reconhecimento das vendas sem atribuição. Seguro de repetir (a trava
+  por ID Venda ignora as que já têm lucro) e usa o lucro bruto já gravado em `Itens_Venda`,
+  sem recalcular custo ou preço.
+
+O contador de vendas sem lucro no Health Check, criado na sessão 5, é o que fecha o ciclo:
+a falha deixa de ser invisível e vira número no diagnóstico.
+
+**Também corrigido no teste:** o preço da venda E2E vinha do custo do lote recém-aberto
+(18,33), mas o FIFO consome o booster mais antigo, que era o comprado (55) — a venda saía
+com prejuízo de −33,34 e o assert de lucro perdia o sentido. Agora o preço fica acima do
+custo do lote mais caro disponível.
+
 **Pendente:**
-- Rodar `testarFluxoCompletoE2E()` pela quarta vez — venda e retirada seguem sem execução.
+- Rodar **Sócios → Gerar Histórico de Participações** na HML e depois
+  `testarFluxoCompletoE2E()` — venda e retirada seguem sem execução completa.
+- Rodar **Sócios → Reprocessar Lucro das Vendas Pendentes** se fizer sentido para as vendas
+  antigas da HML (são massa de teste; decisão do Kaique).
+- Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
+  o código grava.
 - Alinhar as colunas de `Compras`, `Pokemon_Abertura_Box` e `Movimentos_Estoque` com o que
   o código grava.
 - Depois dele, rodar `testarModuloSocietarioCompleto()` de novo: com lucro atribuído, os

@@ -41,6 +41,9 @@ function onOpen() {
       .addSubMenu(
         ui.createMenu('Sócios')
           .addItem('Cadastrar Sócios Padrão (Kaique, Samuel, Lucas)', 'runCadastrarSociosPadrao')
+          .addSeparator()
+          .addItem('Gerar Histórico de Participações', 'runGerarHistoricoParticipacoes')
+          .addItem('Reprocessar Lucro das Vendas Pendentes', 'runReprocessarVendasSemLucro')
       )
       .addSeparator()
       .addSubMenu(
@@ -165,6 +168,78 @@ function runCadastrarSociosPadrao() {
       : 'Nenhum sócio novo — Kaique, Samuel e Lucas já estavam cadastrados.';
     SpreadsheetApp.getUi().alert('Sócios Padrão', msg, SpreadsheetApp.getUi().ButtonSet.OK);
   } catch (e) { _menuErro('runCadastrarSociosPadrao', e); }
+}
+
+/**
+ * Gera a foto de participação de hoje a partir da aba Socios.
+ *
+ * Necessário quando um aporte foi lançado direto na planilha: o Total
+ * Aportado muda mas nenhuma foto é tirada, e sem foto o lucro das vendas
+ * não é atribuído a ninguém.
+ */
+function runGerarHistoricoParticipacoes() {
+  try {
+    var ui = SpreadsheetApp.getUi();
+    var socios = SociosService.listarSocios(true);
+    if (socios.length === 0) {
+      ui.alert('Histórico de Participações', 'Nenhum sócio ativo cadastrado.', ui.ButtonSet.OK);
+      return;
+    }
+
+    var resumo = socios.map(function(s) {
+      return '  ' + s.nome + ': ' + Utils.formatarPercentual(s.participacaoAtual);
+    }).join('\n');
+
+    var resp = ui.alert('Gerar Histórico de Participações',
+      'Será gravada a participação de HOJE para cada sócio ativo:\n\n' + resumo +
+      '\n\nIsso não altera valores de aporte nem de lucro — só registra a divisão atual ' +
+      'para que o lucro das vendas possa ser atribuído.\n\nContinuar?',
+      ui.ButtonSet.YES_NO);
+    if (resp !== ui.Button.YES) return;
+
+    var res = SociosService.gerarHistoricoParticipacoesAtual('Geração manual pelo menu');
+    ui.alert('Histórico de Participações',
+      'Linhas criadas: ' + res.linhas + '\nLinhas que já existiam: ' + res.jaHavia +
+      '\n\nSe havia vendas sem lucro atribuído, rode agora ' +
+      '"Reprocessar Lucro das Vendas Pendentes".',
+      ui.ButtonSet.OK);
+  } catch (e) { _menuErro('runGerarHistoricoParticipacoes', e); }
+}
+
+/**
+ * Refaz o reconhecimento de lucro das vendas que ficaram sem atribuição.
+ * Seguro de repetir: venda que já tem lucro atribuído é ignorada.
+ */
+function runReprocessarVendasSemLucro() {
+  try {
+    var ui = SpreadsheetApp.getUi();
+    var pendentes = SociosService.contarVendasSemLucroReconhecido();
+
+    if (pendentes.semLucro === 0) {
+      ui.alert('Reprocessar Lucro',
+        'Nenhuma venda pendente: todas as ' + pendentes.total +
+        ' vendas já têm lucro atribuído.', ui.ButtonSet.OK);
+      return;
+    }
+
+    var resp = ui.alert('Reprocessar Lucro das Vendas Pendentes',
+      pendentes.semLucro + ' de ' + pendentes.total + ' vendas estão sem lucro atribuído.\n\n' +
+      'O lucro bruto usado é o que já está gravado em Itens_Venda — nada de custo ou preço ' +
+      'é recalculado. Vendas que já têm lucro atribuído são ignoradas.\n\nContinuar?',
+      ui.ButtonSet.YES_NO);
+    if (resp !== ui.Button.YES) return;
+
+    var res = SociosService.reprocessarVendasSemLucro();
+    var msg = 'Vendas reprocessadas: ' + res.vendasReprocessadas +
+      '\nLinhas de lucro criadas: ' + res.linhasCriadas +
+      '\nFalhas: ' + res.falhas.length;
+    if (res.falhas.length > 0) {
+      msg += '\n\nPrimeiras falhas:\n' + res.falhas.slice(0, 5).map(function(f) {
+        return '  ' + f.idVenda + ': ' + f.erro;
+      }).join('\n');
+    }
+    ui.alert('Reprocessar Lucro', msg, ui.ButtonSet.OK);
+  } catch (e) { _menuErro('runReprocessarVendasSemLucro', e); }
 }
 
 function runTestarLog() {
