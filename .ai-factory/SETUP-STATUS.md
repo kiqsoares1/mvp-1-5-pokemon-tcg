@@ -18,13 +18,13 @@
 - Sincronização autorizada concluída com `clasp push --force` a partir do commit candidato `1561cca`; um novo `clasp pull` confirmou que `Portal.html` e `BaseStyles.html` remotos são idênticos ao commit.
 - Integração AgentFlow/Antigravity corrigida para adicionar explicitamente o diretório da tarefa como workspace da CLI.
 - Antigravity executou a tarefa final de QA e entregou relatório, mas marcou todos os itens de navegador como `BLOCKED`: a CLI instalada não expõe automação de navegador autenticado.
-- Verificação independente abriu a planilha HML no navegador desta tarefa, mas encontrou a tela de login do Google; a sessão não é compartilhada com o navegador do usuário.
+- Após autenticação humana, a verificação independente abriu a planilha e o Portal HML pelo menu `MVP 1.5 > Abrir Portal`.
+- QA visual aprovado no navegador: Portal renderizado, rodapé `POC AI Factory` visível, discreto, legível e sem sobreposição na janela observada; nenhum erro foi registrado no console do navegador.
 
 ## Pendente
 
-- Autenticar o navegador aberto nesta tarefa e executar a inspeção visual do Portal.
 - Para automação integral pelo Antigravity, conectar à CLI uma ferramenta de navegador autenticado (por exemplo, um MCP de navegador) e repetir o QA.
-- Depois do QA visual aprovado, decidir se o commit candidato deve ser integrado à `main` e enviado ao Git remoto.
+- Decidir se o commit candidato deve ser integrado à `main` e enviado ao Git remoto.
 
 ## Estado de segurança
 
