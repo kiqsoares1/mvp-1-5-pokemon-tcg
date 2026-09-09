@@ -14,6 +14,7 @@
 - Perfis específicos criados: Claude Manager, Codex Developer e Antigravity QA.
 - Pipeline `p_1788925199917_n8otsk` criado pelo Claude Manager.
 - Implementação local concluída pelo Codex na tarefa `t_1788925547648_kmzi51`, branch `task/t_1788925547648_kmzi51`, commit `1561cca`.
+- Verificação remota somente de leitura concluída: os 33 arquivos do Apps Script em homologação coincidem com os arquivos de produto da branch `main`; não há drift remoto antes do gate.
 
 ## Pendente
 

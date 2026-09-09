@@ -40,7 +40,7 @@
     "authorized_by": null,
     "source_commit": null,
     "target": "homologation",
-    "evidence_ref": null
+    "evidence_ref": "Read-only clasp pull into a separate temporary directory returned 33 files; normalized comparison found zero differences from main product files before push."
   },
   "browser": {
     "performed": false,
