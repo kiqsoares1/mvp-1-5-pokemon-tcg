@@ -12,14 +12,22 @@
 - MCP `agentflow` conectado ao Claude com escopo local deste projeto.
 - AgentFlow configurado com concorrência 1, permissões automáticas desligadas, aprovação manual, zero retries nativos e diretório deste projeto.
 - Perfis específicos criados: Claude Manager, Codex Developer e Antigravity QA.
+- Pipeline `p_1788925199917_n8otsk` criado pelo Claude Manager.
+- Implementação local concluída pelo Codex na tarefa `t_1788925547648_kmzi51`, branch `task/t_1788925547648_kmzi51`, commit `1561cca`.
 
 ## Pendente
 
-- Executar a pequena mudança visual padrão descrita em `poc-task.json`.
-- Rodar uma tarefa real do Codex pelo AgentFlow; o smoke test executado até aqui foi direto na CLI.
+- Revisar e autorizar, se desejado, `clasp push` do commit candidato `1561cca` para homologação.
 - Provar o browser do Antigravity quando chamado pelo AgentFlow.
 - Autorizar, quando houver um diff concreto, a sincronização de homologação necessária ao teste visual.
 
 ## Estado de segurança
 
-Não foram executados `clasp pull`, `clasp push`, testes que escrevem na planilha, Git push, merge ou deploy. O código de produto continua igual ao commit-base. O AgentFlow mantém estado em `C:\Users\kaiqu\.agentflow\agentflow.db`.
+Não foram executados `clasp pull`, `clasp push`, testes que escrevem na planilha, Git push, merge ou deploy. A alteração de produto existe somente na branch de tarefa. O AgentFlow mantém estado em `C:\Users\kaiqu\.agentflow\agentflow.db`.
+
+## Achados da POC
+
+- O primeiro executor encerrou pedindo uma autorização local que já existia; foi necessário tornar a autorização explícita na tarefa.
+- Com a configuração segura original, o AgentFlow iniciou Codex somente para leitura. Foi aplicado o workaround documentado em `AGENTFLOW-CODEX-WORKAROUND.md`.
+- A configuração ampla voltou para `cli_skip_permissions=false` imediatamente após a tarefa Codex.
+- O AgentFlow registrou `318.458` tokens de Codex nas três tentativas, incluindo duas tentativas improdutivas. A tentativa bem-sucedida registrou `193.548`. Isso reprova a meta Economy inicial e precisa ser otimizado antes de uso frequente.

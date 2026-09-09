@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
-  "state": "draft_requires_user_choice_before_code_change",
+  "state": "local_implementation_complete_awaiting_clasp_push_gate",
   "project_id": "pokemon-tcg-mvp",
   "run_id": "pokemon-tcg-poc-001",
-  "pipeline_id": null,
-  "task_id": null,
+  "pipeline_id": "p_1788925199917_n8otsk",
+  "task_id": "t_1788925547648_kmzi51",
   "baseline_commit": "c30e4f103a809a1a651fe1c0eb6448e5e43eb1e1",
-  "objective": "Fazer uma alteração visual pequena e reversível no Portal, definida pelo usuário, implementar com Codex e validar com Antigravity na homologação.",
+  "objective": "Adicionar ao rodapé do Portal uma identificação discreta POC AI Factory, implementar com Codex e validar com Antigravity na homologação.",
   "recommended_candidate": "Adicionar ao rodapé do Portal uma identificação discreta POC AI Factory, sem alterar regras de negócio nem dados.",
   "acceptance_criteria": [
     {
