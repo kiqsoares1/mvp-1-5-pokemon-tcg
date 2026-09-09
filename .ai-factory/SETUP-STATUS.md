@@ -34,7 +34,7 @@
 ## Integração Git
 
 - O commit de produto aprovado em HML foi integrado à `main` como `92bf5d2`.
-- A branch local está pronta para envio ao `origin/main` após as verificações finais deste ciclo.
+- A `main` foi enviada ao `origin/main`; código, documentação e scripts da AI Factory estão versionados no GitHub.
 
 ## Estado de segurança
 

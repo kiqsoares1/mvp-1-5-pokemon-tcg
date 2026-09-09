@@ -49,8 +49,9 @@
   ],
   "git": {
     "merged_to_main": true,
-    "pushed_to_remote": false,
-    "main_commit": "92bf5d2"
+    "pushed_to_remote": true,
+    "main_commit": "92bf5d2",
+    "first_remote_commit": "052588bca557164b200af68ac30db705b228f058"
   },
   "overall_status": "passed_with_antigravity_browser_limitation",
   "recommendation": "GO for integrating the candidate commit; Antigravity browser automation remains a tooling improvement."

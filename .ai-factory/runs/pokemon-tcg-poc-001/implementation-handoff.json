@@ -5,7 +5,7 @@
   "pipeline_id": "p_1788925199917_n8otsk",
   "task_id": "t_1788925547648_kmzi51",
   "attempt": 3,
-  "status": "merged_to_main_ready_to_push",
+  "status": "complete_merged_and_pushed",
   "summary": "Identificação discreta POC AI Factory adicionada ao rodapé do Portal.",
   "code": {
     "worktree_path": "C:\\Users\\kaiqu\\Documents\\mvp-1-5-pokemon-tcg\\.agentflow\\worktrees\\task-t_1788925547648_kmzi51",
@@ -74,7 +74,7 @@
     "model_requested": "codex:gpt-5.6-luna",
     "model_observed": "gpt-5.6-luna"
   },
-  "next_capability": "git_push",
-  "next_action": "Push main to origin, then record the remote SHA.",
+  "next_capability": "normal_operation",
+  "next_action": "Use AgentFlow for the next scoped task; authenticate the Playwright profile once when browser QA is first invoked.",
   "created_at": "2026-09-09T03:46:58-03:00"
 }
