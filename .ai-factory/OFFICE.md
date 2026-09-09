@@ -7,11 +7,11 @@ O Pixtuoid `0.18.0` está instalado globalmente e conectado às fontes `claude-c
 ## Como acessar
 
 - Painel operacional: `http://127.0.0.1:3100`
-- Escritório visual: janela flutuante do Pixtuoid.
+- Escritório visual: janela maximizada do Pixtuoid em modo completo.
 - Reabrir o escritório: `.ai-factory/scripts/start-office.ps1`
 - Diagnóstico: `pixtuoid doctor --graphics off`
 
-Os atalhos `AI Factory - AgentFlow` e `AI Factory - Escritorio` foram instalados na pasta de inicialização do Windows.
+Os atalhos `AI Factory - AgentFlow` e `AI Factory - Escritorio` foram instalados na pasta de inicialização do Windows. O segundo abre o escritório maximizado; o modo `pixtuoid floating` continua disponível para quem preferir o visor compacto.
 
 ## Relação entre as telas
 

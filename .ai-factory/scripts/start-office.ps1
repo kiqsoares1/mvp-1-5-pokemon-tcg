@@ -7,4 +7,6 @@ if (-not (Test-Path -LiteralPath $binary)) {
   throw 'Pixtuoid não encontrado. Execute: npm install -g pixtuoid'
 }
 
-Start-Process -FilePath $binary -ArgumentList @('floating') -WorkingDirectory (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$command = "Remove-Item Env:NO_COLOR -ErrorAction SilentlyContinue; `$env:CLICOLOR_FORCE='1'; `$env:TERM='xterm-256color'; `$env:COLORTERM='truecolor'; Set-Location -LiteralPath '$repo'; & '$binary'"
+Start-Process -FilePath 'powershell.exe' -WindowStyle Maximized -ArgumentList @('-NoProfile', '-NoExit', '-Command', $command) -WorkingDirectory $repo
