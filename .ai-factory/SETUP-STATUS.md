@@ -29,7 +29,12 @@
 ## Pendente
 
 - Autenticar uma vez o perfil persistente do Playwright quando o próximo QA Google for iniciado pelo Antigravity.
-- Integrar o commit candidato à `main` e enviar ao Git remoto.
+- Confirmar a primeira autenticação do perfil persistente do Playwright durante um QA Antigravity futuro.
+
+## Integração Git
+
+- O commit de produto aprovado em HML foi integrado à `main` como `92bf5d2`.
+- A branch local está pronta para envio ao `origin/main` após as verificações finais deste ciclo.
 
 ## Estado de segurança
 
