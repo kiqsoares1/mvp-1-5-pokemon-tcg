@@ -1,5 +1,7 @@
 # AUTOMACAO_NAVEGADOR.md
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos em [`README.md`](../README.md); visão geral e links da planilha/Apps Script em [`CONTEXTO.md`](CONTEXTO.md).
+
 Aprendizados de automação de navegador (Chrome via `mcp__claude-in-chrome__*`) neste
 projeto, especificamente Google Sheets e o editor do Apps Script. Ler antes de fazer
 qualquer edição via navegador — evita repetir os mesmos erros.

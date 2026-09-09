@@ -1,5 +1,7 @@
 # PLANO_DE_TESTES.md
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos em [`README.md`](../README.md); visão geral e links da planilha/Apps Script em [`CONTEXTO.md`](CONTEXTO.md).
+
 Roteiro segmentado por área, para rodar depois de qualquer mudança relevante. Marcar
 resultado (✅/❌/⚠️) e data a cada rodada, num `STATUS.md` ou direto neste arquivo.
 

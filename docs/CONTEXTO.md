@@ -1,5 +1,8 @@
 # CONTEXTO.md — Visão Geral do Projeto
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos
+> em [`README.md`](../README.md).
+
 ## O que é
 
 **MVP 1.5/1.6 — Gestão Pokémon TCG + Módulo Societário**
@@ -42,11 +45,21 @@ ao Kaique separadamente, caso ele queira importar esse histórico.
 
 ## Estrutura deste repositório
 
+O código-fonte fica **na raiz** — não existe pasta `src/` nem `tests/`. O `.clasp.json`
+usa `"rootDir": ""`, então todo `.js` da raiz é enviado ao Apps Script.
+
 ```
-/src        — código-fonte real do Apps Script (.gs e .html), sincronizado via clasp
-/docs       — esta coletânea de documentos de contexto
-/tests      — roteiros de teste manuais (herdados do gs_codex, quando aplicável)
+00_Config.js … 20_SociosService.js  — serviços do Apps Script (ordem de carga pelo prefixo)
+99_Testes_*.js                      — suítes de teste, rodadas pelo menu/editor do Apps Script
+Portal.html / BaseStyles.html /
+BaseScripts.html                    — o Portal (HTMLService)
+appsscript.json                     — manifesto do projeto Apps Script
+.clasp.json                         — vínculo com o projeto Apps Script (Script ID)
+docs/                               — esta coletânea de documentos de contexto
 ```
+
+Detalhe arquivo a arquivo em [`ARQUITETURA.md`](ARQUITETURA.md); índice geral no
+[`README.md`](../README.md) da raiz.
 
 ## Papéis
 

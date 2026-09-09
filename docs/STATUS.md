@@ -1,10 +1,36 @@
 # STATUS.md
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos em [`README.md`](../README.md); visão geral e links da planilha/Apps Script em [`CONTEXTO.md`](CONTEXTO.md).
+
 Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter curto; para
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
-## 2026-08-31 (sessão 6 — teste E2E do fluxo funcional)
+## 2026-09-09 (sessão 7 — documentação alinhada com o repositório real)
+
+Sessão curta, só de documentação — **nenhuma mudança de código**, nada enviado ao Apps
+Script. Motivo: preparar a pasta para ser entregue como contexto a outra ferramenta
+(Codex), o que exigiu que os documentos descrevessem o repositório como ele é.
+
+**Corrigido:** README, `CONTEXTO.md` e `ARQUITETURA.md` diziam que o código ficava em
+`/src` (e citavam um `/tests` inexistente). Nunca houve `src/`: o `.clasp.json` usa
+`"rootDir": ""` e o código está na raiz — quem seguisse a documentação procuraria a pasta
+errada. Também trocadas as extensões `.gs` por `.js` (o repositório usa `.js`; `.gs` fica
+só nas entradas históricas antigas deste arquivo, que não devem ser reescritas).
+
+**Acrescentado:**
+- Tabela de referências no README (repositório, planilha HML, projeto Apps Script, Script
+  ID, conta Google) e cabeçalho com o link do repositório em cada documento de `docs/`.
+- `ARQUITETURA.md` ganhou a seção **Testes (`99_Testes_*.js`)**, que antes não era listada
+  em lugar nenhum, e a nota de que não existe `15_` (número apenas pulado, não arquivo
+  perdido) e de que `Utils.paraData` é o parser de data oficial.
+- Cabeçalho da sessão 6 passou a `2026-08-31 → 2026-09-01`: o conteúdo já cobria a quinta
+  execução do E2E (01/09, 00:33) e os dois commits daquele dia.
+
+**Pendente:** as pendências da sessão 6 continuam todas de pé — a lista está no fim
+daquela seção, logo abaixo.
+
+## 2026-08-31 → 2026-09-01 (sessão 6 — teste E2E do fluxo funcional)
 
 **Alvo:** a maior lacuna do projeto — as seções 2 a 7 do `PLANO_DE_TESTES.md` nunca
 executadas. Em vez de percorrer o roteiro manualmente uma vez e marcar caixinhas, virou

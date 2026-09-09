@@ -1,5 +1,7 @@
 # DESIGN_GUIA.md
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos em [`README.md`](../README.md); visão geral e links da planilha/Apps Script em [`CONTEXTO.md`](CONTEXTO.md).
+
 Convenções visuais do Portal (`Portal.html` + `BaseStyles.html` + `BaseScripts.html`).
 Consultar antes de adicionar/alterar telas, para manter consistência.
 

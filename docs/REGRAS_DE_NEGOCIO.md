@@ -1,5 +1,7 @@
 # REGRAS_DE_NEGOCIO.md
 
+> Repositório: https://github.com/kiqsoares1/mvp-1-5-pokemon-tcg — índice dos documentos em [`README.md`](../README.md); visão geral e links da planilha/Apps Script em [`CONTEXTO.md`](CONTEXTO.md).
+
 Adaptado do `AGENTS.md` original do projeto (sessão anterior), mantido como a fonte de
 verdade das regras. Atualizar este arquivo sempre que uma regra de negócio mudar — é a
 primeira coisa a consultar antes de alterar código.
@@ -74,7 +76,7 @@ primeira coisa a consultar antes de alterar código.
 
 ## 8. Módulo societário
 
-Ver `20_SociosService.gs` no código.
+Ver `20_SociosService.js` no código.
 
 - 3 sócios iniciais: Kaique, Samuel, Lucas (outros podem ser cadastrados pelo Portal →
   Sócios).
