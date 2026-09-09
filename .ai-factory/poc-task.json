@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "state": "draft_requires_user_choice_before_code_change",
+  "project_id": "pokemon-tcg-mvp",
+  "run_id": "pokemon-tcg-poc-001",
+  "pipeline_id": null,
+  "task_id": null,
+  "baseline_commit": "c30e4f103a809a1a651fe1c0eb6448e5e43eb1e1",
+  "objective": "Fazer uma alteração visual pequena e reversível no Portal, definida pelo usuário, implementar com Codex e validar com Antigravity na homologação.",
+  "recommended_candidate": "Adicionar ao rodapé do Portal uma identificação discreta POC AI Factory, sem alterar regras de negócio nem dados.",
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "description": "A alteração visual escolhida aparece no Portal da homologação sem prejudicar o layout existente."
+    },
+    {
+      "id": "AC2",
+      "description": "O Portal abre sem erro visível e a navegação básica existente continua funcional."
+    },
+    {
+      "id": "AC3",
+      "description": "O QA registra o SHA exato sincronizado e evidência do navegador."
+    }
+  ],
+  "required_capabilities": [
+    "coding",
+    "browser_testing"
+  ],
+  "allowed_local_actions": [
+    "read_repository",
+    "create_task_worktree",
+    "edit_scoped_ui_files",
+    "run_local_static_checks",
+    "create_local_task_commit"
+  ],
+  "human_gates": [
+    "clasp_pull_before_editing_if_remote_sync_is_required",
+    "clasp_push_to_homologation",
+    "browser_login_or_account_selection",
+    "spreadsheet_mutation",
+    "git_push",
+    "merge",
+    "deploy"
+  ],
+  "relevant_files": [
+    "Portal.html",
+    "BaseStyles.html",
+    "BaseScripts.html",
+    "docs/DESIGN_GUIA.md",
+    "docs/AUTOMACAO_NAVEGADOR.md",
+    "docs/PLANO_DE_TESTES.md"
+  ],
+  "output_contract": ".ai-factory/handoff-template.json"
+}

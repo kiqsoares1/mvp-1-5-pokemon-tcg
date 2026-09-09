@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "project_id": "pokemon-tcg-mvp",
+  "run_id": "pokemon-tcg-poc-001",
+  "pipeline_id": null,
+  "task_id": null,
+  "attempt": 1,
+  "status": "blocked",
+  "summary": "Template ainda não preenchido por uma execução real.",
+  "code": {
+    "worktree_path": null,
+    "branch": null,
+    "base_commit": "c30e4f103a809a1a651fe1c0eb6448e5e43eb1e1",
+    "head_commit": null,
+    "files_changed": [],
+    "diff_ref": null
+  },
+  "checks": [],
+  "acceptance": [
+    { "criterion_id": "AC1", "status": "not_run", "evidence_ref": null },
+    { "criterion_id": "AC2", "status": "not_run", "evidence_ref": null },
+    { "criterion_id": "AC3", "status": "not_run", "evidence_ref": null }
+  ],
+  "apps_script_sync": {
+    "performed": false,
+    "authorized_by": null,
+    "source_commit": null,
+    "target": "homologation",
+    "evidence_ref": null
+  },
+  "browser": {
+    "performed": false,
+    "tested_commit": null,
+    "checked_at": null,
+    "evidence_ref": null
+  },
+  "bugs": [],
+  "risks": [],
+  "blockers": [
+    "Template não preenchido"
+  ],
+  "usage": {
+    "input_tokens": null,
+    "output_tokens": null,
+    "elapsed_seconds": null,
+    "model_requested": null,
+    "model_observed": null
+  },
+  "next_capability": null,
+  "next_action": "Executar a POC após instalar e autenticar os agentes ausentes.",
+  "created_at": null
+}

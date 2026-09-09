@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "project_id": "pokemon-tcg-mvp",
+  "name": "MVP Pokémon TCG",
+  "repo_path": "C:\\Users\\kaiqu\\Documents\\mvp-1-5-pokemon-tcg",
+  "context_file": "PROJECT.md",
+  "baseline_commit": "c30e4f103a809a1a651fe1c0eb6448e5e43eb1e1",
+  "priority": "medium",
+  "data_classification": "confidential_small_business",
+  "runtime": "google_apps_script_v8",
+  "ui": "google_sheets_htmlservice_modal",
+  "local_test_runner": null,
+  "max_active_executor_tasks": 1,
+  "allowed_browser_targets": [
+    "Google Sheets homologation workbook already documented in docs/CONTEXTO.md",
+    "Google Apps Script project already documented in docs/CONTEXTO.md"
+  ],
+  "gates": [
+    "clasp_pull",
+    "clasp_push",
+    "spreadsheet_write_test",
+    "web_editor_change",
+    "git_push",
+    "merge",
+    "deploy"
+  ],
+  "agents": {
+    "claude": {
+      "role": "manager_and_selective_reviewer",
+      "agentflow_id": "pokemon-manager",
+      "model_key": "claude:sonnet",
+      "cli_available": true,
+      "cli_version_observed": "2.1.266",
+      "authenticated": true,
+      "subscription_observed": "pro",
+      "verified_at": "2026-09-09"
+    },
+    "codex": {
+      "role": "implementation",
+      "agentflow_id": "pokemon-developer",
+      "model_key": "codex:gpt-5.6-luna",
+      "cli_available": true,
+      "cli_version_observed": "codex-cli 0.153.4",
+      "authenticated": true,
+      "direct_smoke_test": "passed",
+      "verified_at": "2026-09-09"
+    },
+    "antigravity": {
+      "role": "browser_qa",
+      "agentflow_id": "pokemon-qa",
+      "model_key": "antigravity:gemini-3.7-flash",
+      "cli_available": true,
+      "cli_version_observed": "1.1.28",
+      "authenticated": true,
+      "direct_smoke_test": "passed_with_gemini-3.8-flash-low",
+      "browser_verified_via_agentflow": false,
+      "verified_at": "2026-09-09"
+    }
+  }
+}

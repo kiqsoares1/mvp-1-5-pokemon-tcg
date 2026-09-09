@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "policy_name": "Economy",
+  "enforcement": "manager_prompt_during_poc",
+  "max_active_executor_tasks_global": 1,
+  "max_executor_tasks_per_request": 6,
+  "max_repair_rounds": 2,
+  "max_model_escalations_per_request": 1,
+  "max_request_minutes": 30,
+  "native_auto_retry": false,
+  "full_transcripts_default": false,
+  "parallel_reasoning_default": false,
+  "browser_only_when_required": true,
+  "context_order": [
+    "PROJECT.md",
+    "task.json",
+    "relevant_files",
+    "validated_handoff_or_diff"
+  ],
+  "on_limit": "preserve_checkpoint_and_report_blocked"
+}
