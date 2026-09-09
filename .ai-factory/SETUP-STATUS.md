@@ -15,16 +15,20 @@
 - Pipeline `p_1788925199917_n8otsk` criado pelo Claude Manager.
 - Implementação local concluída pelo Codex na tarefa `t_1788925547648_kmzi51`, branch `task/t_1788925547648_kmzi51`, commit `1561cca`.
 - Verificação remota somente de leitura concluída: os 33 arquivos do Apps Script em homologação coincidem com os arquivos de produto da branch `main`; não há drift remoto antes do gate.
+- Sincronização autorizada concluída com `clasp push --force` a partir do commit candidato `1561cca`; um novo `clasp pull` confirmou que `Portal.html` e `BaseStyles.html` remotos são idênticos ao commit.
+- Integração AgentFlow/Antigravity corrigida para adicionar explicitamente o diretório da tarefa como workspace da CLI.
+- Antigravity executou a tarefa final de QA e entregou relatório, mas marcou todos os itens de navegador como `BLOCKED`: a CLI instalada não expõe automação de navegador autenticado.
+- Verificação independente abriu a planilha HML no navegador desta tarefa, mas encontrou a tela de login do Google; a sessão não é compartilhada com o navegador do usuário.
 
 ## Pendente
 
-- Revisar e autorizar, se desejado, `clasp push` do commit candidato `1561cca` para homologação.
-- Provar o browser do Antigravity quando chamado pelo AgentFlow.
-- Autorizar, quando houver um diff concreto, a sincronização de homologação necessária ao teste visual.
+- Autenticar o navegador aberto nesta tarefa e executar a inspeção visual do Portal.
+- Para automação integral pelo Antigravity, conectar à CLI uma ferramenta de navegador autenticado (por exemplo, um MCP de navegador) e repetir o QA.
+- Depois do QA visual aprovado, decidir se o commit candidato deve ser integrado à `main` e enviado ao Git remoto.
 
 ## Estado de segurança
 
-Não foram executados `clasp pull`, `clasp push`, testes que escrevem na planilha, Git push, merge ou deploy. A alteração de produto existe somente na branch de tarefa. O AgentFlow mantém estado em `C:\Users\kaiqu\.agentflow\agentflow.db`.
+Foram executados `clasp pull` somente para comparação e o `clasp push --force` explicitamente autorizado para homologação. Não foram executados testes que escrevem na planilha, Git push, merge ou deploy. A alteração de produto continua somente na branch de tarefa. O AgentFlow mantém estado em `C:\Users\kaiqu\.agentflow\agentflow.db`.
 
 ## Achados da POC
 
@@ -32,3 +36,5 @@ Não foram executados `clasp pull`, `clasp push`, testes que escrevem na planilh
 - Com a configuração segura original, o AgentFlow iniciou Codex somente para leitura. Foi aplicado o workaround documentado em `AGENTFLOW-CODEX-WORKAROUND.md`.
 - A configuração ampla voltou para `cli_skip_permissions=false` imediatamente após a tarefa Codex.
 - O AgentFlow registrou `318.458` tokens de Codex nas três tentativas, incluindo duas tentativas improdutivas. A tentativa bem-sucedida registrou `193.548`. Isso reprova a meta Economy inicial e precisa ser otimizado antes de uso frequente.
+- O Antigravity inicialmente leu a pasta padrão da própria CLI em vez do diretório recebido do AgentFlow. O ajuste e sua limitação estão documentados em `AGENTFLOW-ANTIGRAVITY-WORKAROUND.md`.
+- O pipeline acumulou mais `8.097` tokens em três tentativas de QA Antigravity; somente a terceira gerou relatório. As duas primeiras foram bloqueadas antes da leitura do projeto.

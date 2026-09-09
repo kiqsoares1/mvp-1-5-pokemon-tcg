@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "project_id": "pokemon-tcg-mvp",
+  "run_id": "pokemon-tcg-poc-001",
+  "tested_commit": "1561ccaf8c04684ad5e40d8fa0f0162ec6796a86",
+  "target": "homologation",
+  "apps_script_sync": {
+    "status": "passed",
+    "method": "clasp push --force",
+    "scope": ["Portal.html", "BaseStyles.html"],
+    "verification": "Fresh clasp pull after push matched both remote files to the candidate commit."
+  },
+  "antigravity": {
+    "pipeline_id": "p_1788925199917_n8otsk",
+    "final_task_id": "t_1788926945057_6ro2cg",
+    "status": "blocked",
+    "static_review": "passed",
+    "browser_review": "blocked",
+    "reason": "Antigravity CLI did not expose an authenticated browser automation tool.",
+    "recommendation": "NO-GO until visual browser QA is completed."
+  },
+  "independent_browser_check": {
+    "status": "blocked",
+    "observed": "Google sign-in page for the HML spreadsheet",
+    "reason": "The task browser has no authenticated Google session.",
+    "mutations_performed": false
+  },
+  "acceptance": [
+    {"criterion_id": "AC1", "status": "blocked", "evidence": "HML browser requires authentication."},
+    {"criterion_id": "AC2", "status": "blocked", "evidence": "Portal could not be opened through the Sheets menu."},
+    {"criterion_id": "AC3", "status": "blocked", "evidence": "Static HTML/CSS conforms; real viewport inspection remains pending."}
+  ],
+  "git": {
+    "merged_to_main": false,
+    "pushed_to_remote": false
+  }
+}
