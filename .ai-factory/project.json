@@ -28,7 +28,7 @@
     "claude": {
       "role": "manager_and_selective_reviewer",
       "agentflow_id": "pokemon-manager",
-      "model_key": "claude:sonnet",
+      "model_key": "claude:haiku",
       "cli_available": true,
       "cli_version_observed": "2.1.266",
       "authenticated": true,
@@ -48,11 +48,12 @@
     "antigravity": {
       "role": "browser_qa",
       "agentflow_id": "pokemon-qa",
-      "model_key": "antigravity:gemini-3.7-flash",
+      "model_key": "antigravity:gemini-3.8-flash-low",
       "cli_available": true,
       "cli_version_observed": "1.1.28",
       "authenticated": true,
       "direct_smoke_test": "passed_with_gemini-3.8-flash-low",
+      "browser_mcp_configured": true,
       "browser_verified_via_agentflow": false,
       "verified_at": "2026-09-09"
     }

@@ -11,10 +11,12 @@ Esta pasta adapta a documentação geral da AI Factory ao repositório Pokémon 
 - clasp: disponível (`3.3.0`).
 - Claude CLI: instalada (`2.1.266`) e autenticada com assinatura Claude Pro.
 - Antigravity CLI (`agy`): instalada (`1.1.28`), autenticada e com smoke test direto aprovado.
-- AgentFlow: `1.3.3`, ativo em `http://127.0.0.1:3100`, MCP conectado ao Claude neste projeto.
+- AgentFlow: `1.3.3`, ativo em `http://127.0.0.1:3100`, MCP conectado ao Claude neste projeto e inicialização automática instalada.
 - AgentFlow seguro para a POC: uma tarefa concorrente, permissões automáticas desligadas, aprovação manual, retries nativos desligados e raiz apontada para este repositório.
-- Perfis criados: `pokemon-manager`, `pokemon-developer` e `pokemon-qa`.
+- Perfis criados: `pokemon-manager` (Haiku), `pokemon-developer` (Luna) e `pokemon-qa` (Gemini Flash Low).
 - Codex: login ChatGPT ativo e smoke test direto em sandbox somente leitura aprovado.
+- Pixtuoid `0.18.0`: escritório visual instalado, aberto e conectado a Claude Code, Codex e Antigravity.
+- Playwright MCP: configurado no Antigravity com perfil persistente exclusivo deste projeto.
 
 ## Arquivos
 
@@ -31,4 +33,10 @@ Esta pasta adapta a documentação geral da AI Factory ao repositório Pokémon 
 3. Após autorização, sincronizar homologação → Antigravity no navegador.
 4. Revisar evidências e decidir sobre merge/push.
 
-Nenhuma alteração de produto, sincronização com Apps Script, planilha ou repositório remoto foi feita ao criar esta configuração. As instalações das CLIs e configurações do AgentFlow são locais à máquina/usuário; o MCP do Claude foi cadastrado com escopo local deste projeto.
+## Acesso
+
+- AgentFlow: `http://127.0.0.1:3100`
+- Escritório: janela flutuante `Pixtuoid`; para reabrir, execute `.ai-factory/scripts/start-office.ps1`.
+- Inicialização automática: atalhos `AI Factory - AgentFlow` e `AI Factory - Escritorio` na pasta de Inicializar do Windows.
+
+A POC foi sincronizada e aprovada no Apps Script HML. As instalações das CLIs, do Pixtuoid e as configurações do AgentFlow são locais à máquina/usuário; o MCP do Claude foi cadastrado com escopo local deste projeto.

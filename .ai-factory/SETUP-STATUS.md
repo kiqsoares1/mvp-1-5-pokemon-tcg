@@ -20,11 +20,16 @@
 - Antigravity executou a tarefa final de QA e entregou relatório, mas marcou todos os itens de navegador como `BLOCKED`: a CLI instalada não expõe automação de navegador autenticado.
 - Após autenticação humana, a verificação independente abriu a planilha e o Portal HML pelo menu `MVP 1.5 > Abrir Portal`.
 - QA visual aprovado no navegador: Portal renderizado, rodapé `POC AI Factory` visível, discreto, legível e sem sobreposição na janela observada; nenhum erro foi registrado no console do navegador.
+- Política Economy reforçada no AgentFlow: Claude Haiku para Manager, Codex Luna para implementação, Gemini 3.8 Flash Low para QA, uma tarefa simultânea, uma iteração, zero retries e limite padrão de 15 minutos.
+- Playwright MCP conectado ao Antigravity com perfil persistente local e permissões restritas ao servidor `playwright` e aos domínios Google do HML.
+- Pixtuoid `0.18.0` instalado, conectado a Claude Code, Codex e Antigravity e iniciado em modo flutuante.
+- Inicialização automática do AgentFlow e do escritório instalada na pasta de Inicializar do Windows.
+- Patches locais de segurança e workspace do AgentFlow reaplicados automaticamente pelo script de inicialização pinado na versão `1.3.3`.
 
 ## Pendente
 
-- Para automação integral pelo Antigravity, conectar à CLI uma ferramenta de navegador autenticado (por exemplo, um MCP de navegador) e repetir o QA.
-- Decidir se o commit candidato deve ser integrado à `main` e enviado ao Git remoto.
+- Autenticar uma vez o perfil persistente do Playwright quando o próximo QA Google for iniciado pelo Antigravity.
+- Integrar o commit candidato à `main` e enviar ao Git remoto.
 
 ## Estado de segurança
 

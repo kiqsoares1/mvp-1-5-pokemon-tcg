@@ -1,2 +1,7 @@
 # AgentFlow worktrees
 .agentflow/
+
+# Local AI Factory runtime
+.ai-factory/runtime/*.log
+.ai-factory/runtime/*.pid
+.ai-factory/runtime/playwright-profile/
