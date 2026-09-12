@@ -82,6 +82,16 @@ cancelada, então **não estava errada**. Mesmo padrão quebrado encontrado e co
 helper de FIFO do `99_Testes_Venda.js:128`, que escolhia arbitrariamente qual lote era o
 "mais antigo" e podia cobrar FIFO do lote errado.
 
+**Achado que teria quebrado a planilha:** `clasp status` antes do push listava **160**
+arquivos em vez de 33. Como o `rootDir` é a raiz do repo e a AI Factory cria worktrees em
+`.agentflow/`, o push levaria quatro cópias de cada serviço (a da raiz e uma por worktree,
+além do `.clasp.json`, que casa com `jsonExtensions`). No Apps Script todos os arquivos
+dividem o mesmo escopo global: `var VendaService = (function(){...})()` seria redefinido
+quatro vezes e a última cópia carregada venceria — código antigo rodando em silêncio, sem
+erro visível. Criado `.claspignore` como allowlist (`**/**` + `!*.js`, `!*.html`,
+`!appsscript.json`); `clasp status` voltou a listar os 33 arquivos certos. **Conferir
+`clasp status` antes de todo push daqui em diante.**
+
 **Pendente:**
 - Rodar `testarFluxoCompletoE2E()` na HML — agora com o passo 8. Continua sendo a maior
   lacuna: venda e retirada nunca completaram, e as correções de data da sessão 6 seguem sem

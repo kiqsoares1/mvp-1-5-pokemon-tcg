@@ -1,0 +1,14 @@
+# O clasp empurra tudo abaixo do rootDir ("" = raiz do repo). Desde que a
+# AI Factory passou a criar worktrees em .agentflow/, isso significava
+# empurrar 4 copias de cada servico: a da raiz e uma por worktree. No Apps
+# Script todos os arquivos dividem o mesmo escopo global, entao
+# "var VendaService = (function(){...})()" seria redefinido varias vezes e
+# a ultima copia carregada venceria -- codigo antigo rodando em silencio.
+#
+# Por isso a lista abaixo e um allowlist: ignora tudo e libera so o que
+# realmente e do projeto Apps Script, na raiz.
+**/**
+
+!*.js
+!*.html
+!appsscript.json
