@@ -54,6 +54,7 @@ function testarRegistrarDespesa() {
     data: Utils.formatarData(new Date()),
     negocio: 'Pokémon TCG',
     categoria: 'Operacional',
+    natureza: 'Fixa',
     valor: 25,
     descricao: 'Despesa operacional de teste',
     observacao: 'Teste financeiro manual'
@@ -78,6 +79,10 @@ function testarBloquearValorFinanceiroInvalido() {
     data: Utils.formatarData(new Date()),
     negocio: 'Pokémon TCG',
     categoria: 'Operacional',
+    // Natureza válida de propósito: o que este teste prova é que o valor
+    // negativo bloqueia. Sem natureza, o bloqueio viria da natureza
+    // ausente e o assert passaria pelo motivo errado.
+    natureza: 'Fixa',
     valor: -10,
     descricao: 'Valor invalido deve bloquear'
   });

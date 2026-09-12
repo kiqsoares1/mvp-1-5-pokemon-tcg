@@ -125,8 +125,11 @@ function testarVendaFIFOComMultiplosLotes() {
   }
 
   escolhido.sort(function(a, b) {
-    var da = Utils.parsarData(String(a[C.DATA_CRIACAO] || '').split(' ')[0]);
-    var db = Utils.parsarData(String(b[C.DATA_CRIACAO] || '').split(' ')[0]);
+    // paraData, nao parsarData: Data Criacao vem da planilha como Date de
+    // verdade, e parsarData devolveria null nos dois lados -- a ordem
+    // virava arbitraria e o teste passava a cobrar FIFO do lote errado.
+    var da = Utils.paraData(a[C.DATA_CRIACAO]);
+    var db = Utils.paraData(b[C.DATA_CRIACAO]);
     if (!da || !db) return 0;
     return da - db;
   });

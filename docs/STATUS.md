@@ -74,6 +74,14 @@ pior que assert nenhum.
 do lote e lucro de cada sócio antes da venda e exige que tudo volte à foto depois do
 cancelamento.
 
+**Fechado no fim da sessão:** `testarRegistrarDespesa()` passou a informar `natureza`, e
+`testarBloquearValorFinanceiroInvalido()` também — sem isso o bloqueio da despesa de valor
+negativo vinha da natureza ausente, e o teste passava pelo motivo errado. A série mensal do
+Dashboard (`12_UiService.js:534`) foi conferida: já usa `Utils.paraData` e já ignora venda
+cancelada, então **não estava errada**. Mesmo padrão quebrado encontrado e corrigido no
+helper de FIFO do `99_Testes_Venda.js:128`, que escolhia arbitrariamente qual lote era o
+"mais antigo" e podia cobrar FIFO do lote errado.
+
 **Pendente:**
 - Rodar `testarFluxoCompletoE2E()` na HML — agora com o passo 8. Continua sendo a maior
   lacuna: venda e retirada nunca completaram, e as correções de data da sessão 6 seguem sem
@@ -83,8 +91,6 @@ cancelamento.
   `PLANO_DE_TESTES.md`), inclusive o caso do sócio que já retirou o lucro.
 - Aplicar Proteções de Abas: `Socios`, `Aportes_Socios` e `Retiradas` seguem sem proteção
   desde a sessão 2.
-- Avaliar se o Dashboard mostrava série mensal errada pela conversão de data (sessão 6).
-- Corrigir `testarRegistrarDespesa()` para passar `natureza`.
 - Decisões ainda abertas: não existe cancelamento de **compra**, nem inativação de produto
   pelo Portal (hoje só virando a coluna `Ativo?` na planilha, que não é protegida).
 - Produção nunca foi criada: `CONFIG.AMBIENTE` segue `'HML'` e não há caminho para carga
