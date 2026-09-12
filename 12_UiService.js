@@ -27,6 +27,9 @@
  function uiRegistrarPrecoManual(payload) { return UiService.uiRegistrarPrecoManual(payload); }
  function uiSalvarCompra(payload) { return UiService.uiSalvarCompra(payload); }
  function uiSalvarVenda(payload) { return UiService.uiSalvarVenda(payload); }
+ function uiListarVendas(limite) { return UiService.uiListarVendas(limite); }
+ function uiAnalisarCancelamentoVenda(idVenda) { return UiService.uiAnalisarCancelamentoVenda(idVenda); }
+ function uiCancelarVenda(payload) { return UiService.uiCancelarVenda(payload); }
  function uiRegistrarAberturaPokemon(payload) { return UiService.uiRegistrarAberturaPokemon(payload); }
  function uiRegistrarAporte(payload) { return UiService.uiRegistrarAporte(payload); }
  function uiRegistrarResgate(payload) { return UiService.uiRegistrarResgate(payload); }
@@ -279,6 +282,50 @@
  function uiSalvarVenda(payload) {
  try { return VendaService.salvarVenda(payload || {}); }
  catch (e) { return _erro('uiSalvarVenda', e); }
+ }
+
+ /**
+  * Lista as vendas mais recentes para a tela de cancelamento.
+  * Traz o status para a tela poder marcar as já canceladas e não
+  * oferecer cancelamento de novo.
+  */
+ function uiListarVendas(limite) {
+ try {
+ var max = limite || 30;
+ var vendas = _lerObjetos(CONFIG.ABAS.VENDAS).map(function(v) {
+ return {
+ idVenda: v[C_VENDA.ID_VENDA],
+ data: v[C_VENDA.DATA_VENDA],
+ negocio: v[C_VENDA.NEGOCIO],
+ cliente: v[C_VENDA.CLIENTE_CANAL],
+ valorBruto: Utils.parsarMoeda(v[C_VENDA.VALOR_BRUTO] || 0),
+ valorLiquido: Utils.parsarMoeda(v[C_VENDA.VALOR_LIQUIDO] || 0),
+ status: v[C_VENDA.STATUS] || ''
+ };
+ }).filter(function(v) { return Utils.naoVazio(v.idVenda); });
+
+ // Mais recentes primeiro: a venda que alguém quer cancelar é quase
+ // sempre a que acabou de ser lançada errada.
+ vendas.reverse();
+
+ return _ok({ vendas: vendas.slice(0, max) });
+ }
+ catch (e) { return _erro('uiListarVendas', e); }
+ }
+
+ /**
+  * Prévia do cancelamento — não grava nada. A tela usa isto para montar
+  * o aviso: quais lotes recebem estoque de volta, quanto de lucro sai de
+  * cada sócio e o que impede o cancelamento.
+  */
+ function uiAnalisarCancelamentoVenda(idVenda) {
+ try { return _ok({ analise: VendaService.analisarCancelamento(idVenda) }); }
+ catch (e) { return _erro('uiAnalisarCancelamentoVenda', e); }
+ }
+
+ function uiCancelarVenda(payload) {
+ try { return VendaService.cancelarVenda(payload || {}); }
+ catch (e) { return _erro('uiCancelarVenda', e); }
  }
 
  function uiRegistrarAberturaPokemon(payload) {
@@ -559,6 +606,9 @@
  uiRegistrarPrecoManual: uiRegistrarPrecoManual,
  uiSalvarCompra: uiSalvarCompra,
  uiSalvarVenda: uiSalvarVenda,
+ uiListarVendas: uiListarVendas,
+ uiAnalisarCancelamentoVenda: uiAnalisarCancelamentoVenda,
+ uiCancelarVenda: uiCancelarVenda,
  uiRegistrarAberturaPokemon: uiRegistrarAberturaPokemon,
  uiRegistrarAporte: uiRegistrarAporte,
  uiRegistrarResgate: uiRegistrarResgate,

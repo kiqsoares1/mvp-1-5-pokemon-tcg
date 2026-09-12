@@ -434,6 +434,173 @@ var SociosService = (function () {
   }
 
   /**
+   * Verifica se o lucro de uma venda PODE ser estornado, sem gravar nada.
+   *
+   * Existe separado de estornarLucroDaVenda para o cancelamento de venda
+   * poder recusar ANTES de mexer em estoque: descobrir no meio do caminho
+   * que o lucro não pode voltar deixaria o lote devolvido e o lucro de pé.
+   *
+   * A regra decidida pelo Kaique: se o sócio já sacou o lucro daquela
+   * venda, o cancelamento é recusado. Retirada não é vinculada a uma venda
+   * específica (o sócio saca de um bolo), então o que se checa é o efeito:
+   * se tirar este lucro deixaria o Lucro Disponível dele negativo, é
+   * porque parte do que ele sacou vinha daqui. Saldo negativo de sócio não
+   * existe em nenhum lugar deste sistema e não vai nascer aqui.
+   *
+   * @param {string} idVenda
+   * @returns {{pode: boolean, jaEstornado: boolean, linhas: number,
+   *            porSocio: Array, bloqueios: Array}}
+   */
+  function verificarEstornoLucro(idVenda) {
+    var vazio = { pode: false, jaEstornado: false, linhas: 0, porSocio: [], bloqueios: [] };
+    if (Utils.eVazio(idVenda)) {
+      vazio.bloqueios = ['ID da venda ausente.'];
+      return vazio;
+    }
+
+    var registros = SheetService.buscarPorCampo(ABA_LUCRO_ITEM, C_LIS.ID_VENDA, idVenda);
+    if (registros.length === 0) {
+      // Venda sem lucro atribuído (nenhum sócio na época, ou reconhecimento
+      // que falhou). Não há o que estornar — e isso não impede o
+      // cancelamento da venda.
+      return { pode: true, jaEstornado: false, linhas: 0, porSocio: [], bloqueios: [] };
+    }
+
+    // Soma por sócio. As linhas de estorno entram negativas nesta mesma
+    // aba, então somar tudo já responde se a venda continua com lucro de
+    // pé: soma zerada = estorno anterior já neutralizou.
+    var somaPorSocio = {};
+    registros.forEach(function(r) {
+      var dados = r.dados;
+      var idSocio = dados[C_LIS.ID_SOCIO];
+      if (Utils.eVazio(idSocio)) return;
+      somaPorSocio[idSocio] = Utils.arredondar(
+        (somaPorSocio[idSocio] || 0) + _numero(dados[C_LIS.LUCRO_ATRIBUIDO_SOCIO]), 4);
+    });
+
+    var porSocio = [];
+    var bloqueios = [];
+    var totalAberto = 0;
+
+    Object.keys(somaPorSocio).forEach(function(idSocio) {
+      var valor = somaPorSocio[idSocio];
+      totalAberto = Utils.arredondar(totalAberto + valor, 4);
+      if (Math.abs(valor) < 0.005) return; // já estornado para este sócio
+
+      var reg = _buscarSocio(idSocio);
+      if (!reg) {
+        bloqueios.push('Sócio ' + idSocio + ' não está mais cadastrado — o lucro dele ' +
+          'nesta venda não tem para onde voltar.');
+        return;
+      }
+
+      var nome = reg.dados[C_SOCIO.NOME] || idSocio;
+      var atribuido = _numero(reg.dados[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL]);
+      var retirado = _numero(reg.dados[C_SOCIO.LUCRO_RETIRADO_TOTAL]);
+      var disponivelDepois = Utils.arredondar(atribuido - valor - retirado, 2);
+
+      porSocio.push({
+        idSocio: idSocio,
+        nome: nome,
+        lucroDaVenda: Utils.arredondar(valor, 2),
+        disponivelAtual: Utils.arredondar(atribuido - retirado, 2),
+        disponivelDepois: disponivelDepois
+      });
+
+      if (disponivelDepois < -0.005) {
+        bloqueios.push(nome + ' já retirou parte deste lucro: estornar ' +
+          Utils.formatarMoeda(valor) + ' deixaria o disponível dele em ' +
+          Utils.formatarMoeda(disponivelDepois) + '.');
+      }
+    });
+
+    var jaEstornado = Math.abs(totalAberto) < 0.005;
+
+    return {
+      pode: bloqueios.length === 0,
+      jaEstornado: jaEstornado,
+      linhas: registros.length,
+      porSocio: porSocio,
+      bloqueios: bloqueios
+    };
+  }
+
+  /**
+   * Estorna o lucro atribuído aos sócios por uma venda cancelada.
+   *
+   * Não apaga as linhas originais de Lucro_Por_Item_Socio: grava o espelho
+   * negativo de cada uma. O histórico continua auditável (dá para ver que
+   * houve lucro e que ele foi desfeito, com data), e nenhuma linha some de
+   * uma aba protegida — que é como o resto do sistema trata dinheiro.
+   *
+   * Chamar somente depois de verificarEstornoLucro aprovar.
+   *
+   * @param {string} idVenda
+   * @param {string} motivo - texto livre, vai para o log
+   * @returns {{sucesso: boolean, linhas: number, erro: string|null}}
+   */
+  function estornarLucroDaVenda(idVenda, motivo) {
+    var check = verificarEstornoLucro(idVenda);
+    if (!check.pode) {
+      return { sucesso: false, linhas: 0, erro: check.bloqueios.join(' | ') };
+    }
+    if (check.linhas === 0 || check.jaEstornado) {
+      return { sucesso: true, linhas: 0, erro: null };
+    }
+
+    var registros = SheetService.buscarPorCampo(ABA_LUCRO_ITEM, C_LIS.ID_VENDA, idVenda);
+    var linhasEstorno = [];
+    var totalPorSocio = {};
+
+    registros.forEach(function(r) {
+      var dados = r.dados;
+      var valor = _numero(dados[C_LIS.LUCRO_ATRIBUIDO_SOCIO]);
+      if (Math.abs(valor) < 0.00005) return;
+
+      var idSocio = dados[C_LIS.ID_SOCIO];
+      var linha = {};
+      linha[C_LIS.ID_LUCRO_ITEM_SOCIO] = IdService.gerarId('LUCRO_ITEM_SOCIO');
+      linha[C_LIS.ID_VENDA] = idVenda;
+      linha[C_LIS.ID_ITEM_VENDA] = dados[C_LIS.ID_ITEM_VENDA];
+      linha[C_LIS.DATA_VENDA] = dados[C_LIS.DATA_VENDA];
+      linha[C_LIS.ID_SOCIO] = idSocio;
+      linha[C_LIS.SOCIO] = dados[C_LIS.SOCIO];
+      linha[C_LIS.PARTICIPACAO_PCT_APLICADA] = dados[C_LIS.PARTICIPACAO_PCT_APLICADA];
+      linha[C_LIS.LUCRO_BRUTO_ITEM] = -_numero(dados[C_LIS.LUCRO_BRUTO_ITEM]);
+      linha[C_LIS.LUCRO_ATRIBUIDO_SOCIO] = -valor;
+      linha[C_LIS.DATA_REGISTRO] = Utils.timestamp();
+      linhasEstorno.push(linha);
+
+      totalPorSocio[idSocio] = Utils.arredondar((totalPorSocio[idSocio] || 0) + valor, 4);
+    });
+
+    if (linhasEstorno.length === 0) return { sucesso: true, linhas: 0, erro: null };
+
+    SheetService.appendLinhas(ABA_LUCRO_ITEM, linhasEstorno);
+
+    Object.keys(totalPorSocio).forEach(function(idSocio) {
+      var reg = _buscarSocio(idSocio);
+      if (!reg) return;
+      var novoAtribuido = Utils.arredondar(
+        _numero(reg.dados[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL]) - totalPorSocio[idSocio], 2);
+      var retirado = _numero(reg.dados[C_SOCIO.LUCRO_RETIRADO_TOTAL]);
+      var campos = {};
+      campos[C_SOCIO.LUCRO_ATRIBUIDO_TOTAL] = novoAtribuido;
+      campos[C_SOCIO.LUCRO_DISPONIVEL] = Utils.arredondar(novoAtribuido - retirado, 2);
+      campos[C_SOCIO.DATA_ATUALIZACAO] = Utils.timestamp();
+      SheetService.atualizarCamposLinha(ABA_SOCIOS, reg.linha, campos);
+    });
+
+    LogService.warning('SociosService', 'estornarLucroDaVenda',
+      'Lucro estornado da venda ' + idVenda + ' | Linhas: ' + linhasEstorno.length +
+      ' | Motivo: ' + (motivo || 'não informado'), idVenda);
+
+    atualizarResumoSocios();
+
+    return { sucesso: true, linhas: linhasEstorno.length, erro: null };
+  }
+
+  /**
    * Gera a foto de participação de hoje a partir do estado atual da aba
    * Socios.
    *
@@ -780,6 +947,8 @@ var SociosService = (function () {
     recalcularParticipacoes_:      recalcularParticipacoes_,
     registrarAporte:               registrarAporte,
     reconhecerLucroDaVenda:        reconhecerLucroDaVenda,
+    verificarEstornoLucro:         verificarEstornoLucro,
+    estornarLucroDaVenda:          estornarLucroDaVenda,
     contarVendasSemLucroReconhecido: contarVendasSemLucroReconhecido,
     gerarHistoricoParticipacoesAtual: gerarHistoricoParticipacoesAtual,
     reprocessarVendasSemLucro:     reprocessarVendasSemLucro,

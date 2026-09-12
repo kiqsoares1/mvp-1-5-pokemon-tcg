@@ -71,6 +71,23 @@
   .alert { margin: 14px 0 0; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: white; color: var(--text); }
   .alert.ok { border-color: #bbf7d0; background: #f0fdf4; color: var(--ok); }
   .alert.err { border-color: #fecaca; background: #fef2f2; color: var(--danger); }
+  .alert.warn { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+
+  /* Zona de operações destrutivas (hoje: cancelamento de venda).
+     Fica visualmente separada do resto do formulário de propósito —
+     não é uma ação a mais na tela, é uma ação que desfaz dinheiro. */
+  /* `display: grid` de .form-grid vence o [hidden] do navegador, então um
+     formulário escondido pelo atributo continuaria visível. */
+  [hidden] { display: none !important; }
+
+  .danger-zone { margin-top: 22px; border: 1px solid #fecaca; border-radius: 8px; background: #fffafa; padding: 14px; }
+  .danger-zone > h4 { margin: 0 0 4px; font-size: 14px; color: var(--danger); }
+  .danger-zone .hint { margin-bottom: 12px; }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
+  .btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
+  .btn.danger[disabled] { background: #fca5a5; border-color: #fca5a5; cursor: not-allowed; }
+  .impacto-lista { margin: 0 0 12px; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+  .impacto-lista li { margin-bottom: 2px; }
   .result-box { white-space: pre-wrap; background: #101828; color: #e5edf0; border-radius: 8px; padding: 12px; min-height: 72px; overflow: auto; }
   .footer { margin-top: auto; color: var(--muted); padding: 16px 24px; border-top: 1px solid var(--line); font-size: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .footer-label { color: var(--muted); opacity: .72; }

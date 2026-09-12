@@ -6,6 +6,90 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-09-12 (sessão 8 — cancelamento de venda)
+
+**Nada enviado ao Apps Script.** Tudo local, aguardando gate de `clasp push`.
+
+**Contexto:** levantamento do que faltava no produto. Duas "lacunas" que eu tinha
+levantado caíram na verificação — `registrarResgate` já é chamado de dentro da retirada
+aprovada (`20_SociosService.js:676`), como `REGRAS_DE_NEGOCIO.md` descreve, e "despesa paga
+do bolso do sócio" foi **removida de propósito na sessão 3**; a pendência antiga da sessão 2
+continua no histórico e não deve ser reaberta. Sobrou uma lacuna real: não existia
+cancelamento de nada, embora `STATUS_VENDA`/`STATUS_COMPRA` já previssem `'Cancelada'` e o
+`SociosService` já ignorasse vendas canceladas ao ratear lucro. Status consumido que
+ninguém gravava.
+
+**Implementado — `VendaService.cancelarVenda` + `analisarCancelamento`:**
+
+A análise é separada da execução de propósito. O cancelamento mexe em três lugares que têm
+de mudar juntos (lote, movimento, lucro dos sócios) e não há transação no Apps Script — se a
+checagem do lucro só acontecesse na hora de estornar, uma recusa lá deixaria o estoque já
+devolvido e a venda meio cancelada. `analisarCancelamento` não grava nada, alimenta o
+painel de impacto da tela, e roda **de novo dentro do lock** antes de gravar (a análise que
+o operador viu pode ter minutos de idade).
+
+Regras decididas pelo Kaique nesta sessão, agora em `REGRAS_DE_NEGOCIO.md` seção 6.1:
+estoque volta ao **lote de origem** (FIFO restaurado); lucro **estornado** e cancelamento
+**recusado se algum sócio já sacou** aquele lucro; **sem limite de data**, com aviso quando
+a venda é de mês fechado (altera o acumulado do MEI).
+
+`SociosService.verificarEstornoLucro` / `estornarLucroDaVenda`: o estorno grava o espelho
+negativo de cada linha em vez de apagar as originais — histórico auditável e nada some de
+aba protegida. Como retirada não é vinculada a uma venda específica, o bloqueio checa o
+efeito: cancelamento que deixaria o Lucro Disponível de alguém negativo não passa.
+
+**Tela:** bloco "Cancelar uma venda" na seção Vendas do Portal, em duas etapas — analisar,
+depois confirmar. O botão vermelho só habilita quando o operador digita o ID da venda de
+novo, e o backend exige a mesma confirmação (`confirmado: true` + `confirmacaoIdVenda` +
+motivo de 5+ caracteres): a regra não pode morar só na tela.
+
+**Bug pré-existente encontrado e corrigido:** `08_EstoqueService.js:136` ordenava o FIFO de
+`listarLotesDisponiveisPorProduto` com `Utils.parsarData`, o mesmo padrão quebrado que a
+sessão 6 corrigiu em sete outros lugares — com a `Date` que o Sheets devolve, retorna `null`
+dos dois lados e a ordem vira arbitrária. Ou seja, **o FIFO da abertura de box podia escolher
+o lote errado**. Trocado por `Utils.paraData`. Os outros dois `parsarData` restantes
+(`07_CompraService.js:68`, `09_VendaService.js:147`) validam string digitada no formulário e
+estão corretos.
+
+**Colunas alinhadas** (pendência aberta desde a sessão 6): `Compras` e `Vendas` ganharam
+`Observação` e `ID Requisição` — em ambas a guarda de duplicidade caía no fallback por log;
+`Movimentos_Estoque` ganhou `Subtipo Movimento`, `Status Destino`, `Custo Unitário Movimento`
+e `Observação`; `Pokemon_Abertura_Box` ganhou `Observação`. O código já gravava tudo isso e
+a planilha descartava em silêncio. Novo tipo `Cancelamento Venda` em `TIPOS_MOVIMENTO`.
+**Exige "Criar Estrutura Base" na próxima ida à planilha.**
+
+**Validação (local, sem planilha):** `node --check` em todos os arquivos tocados e um
+harness em `vm` com stubs do Apps Script carregando `00_Config`, `02_Utils`, `20_Socios` e
+`09_Venda` reais — 8 cenários, 30 asserts, todos passando (caminho feliz, sócio que já
+retirou, as três recusas de confirmação, venda já cancelada, lote alterado depois da venda,
+Encerrado→Disponível, Hold continua Hold, venda sem lucro, aviso de mês anterior).
+
+Depois **teste de mutação**: seis quebras propositais no código (estoque não devolvido,
+bloqueio de lucro removido, confirmação por ID desativada, venda cancelada não detectada,
+estorno não gravado, saldo inconsistente não bloqueado) — **as seis foram detectadas**. É a
+lição da sessão 5, onde um assert com `NaN` passava sem testar nada: assert que não morde é
+pior que assert nenhum.
+
+**Teste na suíte:** passo `e2eCancelamentoVenda` no `99_Testes_E2E.js`, que fotografa saldo
+do lote e lucro de cada sócio antes da venda e exige que tudo volte à foto depois do
+cancelamento.
+
+**Pendente:**
+- Rodar `testarFluxoCompletoE2E()` na HML — agora com o passo 8. Continua sendo a maior
+  lacuna: venda e retirada nunca completaram, e as correções de data da sessão 6 seguem sem
+  execução na planilha.
+- "Criar Estrutura Base" antes do E2E, para as colunas novas existirem.
+- QA manual da tela de cancelamento (itens marcados **Manual** na seção 5b do
+  `PLANO_DE_TESTES.md`), inclusive o caso do sócio que já retirou o lucro.
+- Aplicar Proteções de Abas: `Socios`, `Aportes_Socios` e `Retiradas` seguem sem proteção
+  desde a sessão 2.
+- Avaliar se o Dashboard mostrava série mensal errada pela conversão de data (sessão 6).
+- Corrigir `testarRegistrarDespesa()` para passar `natureza`.
+- Decisões ainda abertas: não existe cancelamento de **compra**, nem inativação de produto
+  pelo Portal (hoje só virando a coluna `Ativo?` na planilha, que não é protegida).
+- Produção nunca foi criada: `CONFIG.AMBIENTE` segue `'HML'` e não há caminho para carga
+  inicial do estoque real.
+
 ## 2026-09-09 (sessão 7 — documentação alinhada com o repositório real)
 
 Sessão curta, só de documentação — **nenhuma mudança de código**, nada enviado ao Apps

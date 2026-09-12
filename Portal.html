@@ -167,6 +167,22 @@ VENDA
 </form>
 <p class="hint">O lucro de cada venda é automaticamente dividido entre os sócios ativos, proporcional à participação vigente na data da venda.</p>
 <pre id="vendaResult" class="result-box"></pre>
+
+<div class="danger-zone">
+<h4>Cancelar uma venda</h4>
+<p class="hint">Devolve o estoque ao lote de origem, estorna o lucro já atribuído aos sócios e marca a venda como Cancelada. Não apaga nada: a venda continua no histórico com o motivo registrado. Escolha a venda e confira o impacto antes de confirmar.</p>
+<div class="form-grid">
+<label class="wide">Venda<select id="cancelVendaSelect"></select></label>
+<div class="wide actions"><button class="btn secondary" type="button" id="cancelAnalisarBtn">Ver o que será desfeito</button></div>
+</div>
+<div id="cancelImpacto"></div>
+<form id="cancelVendaForm" class="form-grid" hidden>
+<label class="wide">Motivo do cancelamento<input name="motivo" placeholder="Ex.: cliente desistiu; lançamento em duplicidade" required></label>
+<label class="wide">Para confirmar, digite o ID da venda<input name="confirmacaoIdVenda" placeholder="VND-..." autocomplete="off" required></label>
+<div class="wide actions"><button class="btn danger" type="submit" id="cancelConfirmarBtn" disabled>Cancelar venda definitivamente</button></div>
+</form>
+<pre id="cancelResult" class="result-box"></pre>
+</div>
 </section>
 
 <!-- ============================================================

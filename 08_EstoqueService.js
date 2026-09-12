@@ -133,8 +133,13 @@ var EstoqueService = (function () {
     }
     // Ordenar FIFO por data de criação
     resultado.sort(function (a, b) {
-      var da = Utils.parsarData(a.dataCriacao);
-      var db = Utils.parsarData(b.dataCriacao);
+      // paraData, não parsarData: Data Criação vem da planilha e o Sheets
+      // entrega uma Date de verdade, que parsarData não aceita (devolve
+      // null). Com null dos dois lados a ordem virava arbitrária e o FIFO
+      // deixava de ser FIFO — mesmo defeito corrigido nos outros serviços
+      // que leem data de célula.
+      var da = Utils.paraData(a.dataCriacao);
+      var db = Utils.paraData(b.dataCriacao);
       if (!da) return 1;
       if (!db) return -1;
       return da - db;

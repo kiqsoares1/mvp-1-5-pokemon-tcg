@@ -60,6 +60,35 @@ primeira coisa a consultar antes de alterar código.
   lucro de cada item aos sócios, na proporção vigente na data da venda (snapshot imutável,
   nunca recalculado depois). Falha nesse reconhecimento não desfaz a venda, só fica em log.
 
+### 6.1 Cancelamento de venda
+
+Decisões do Kaique (2026-09-12), implementadas em `VendaService.cancelarVenda`:
+
+- **O estoque volta ao lote de origem**, não a um lote novo: restaura Quantidade
+  Disponível e Quantidade Vendida no lote que foi consumido, para que o FIFO volte a ser
+  exatamente o que era antes da venda. Lote `Encerrado` volta a `Disponível`; lote em
+  `Hold` **continua em Hold** (Hold é patrimônio — a devolução não o torna vendável).
+- **O lucro atribuído aos sócios é estornado.** As linhas originais de
+  `Lucro_Por_Item_Socio` não são apagadas: entra o espelho negativo de cada uma, para o
+  histórico continuar auditável e nada sumir de uma aba protegida.
+- **Se um sócio já retirou aquele lucro, o cancelamento é recusado**, nomeando quem sacou.
+  Retirada não é vinculada a uma venda específica, então o que se verifica é o efeito:
+  cancelamento que deixaria o Lucro Disponível de alguém negativo não passa. Saldo negativo
+  de sócio não existe neste sistema. Resolver esse caso exige devolução, decidida fora do
+  Portal.
+- **Não há limite de data**: dá para cancelar venda de qualquer época. Venda de mês
+  anterior gera **aviso** na tela (altera mês fechado e o acumulado do faturamento MEI),
+  mas não é bloqueada.
+- **Nada é apagado.** A venda continua na aba `Vendas` com status `Cancelada`, o motivo
+  gravado em `Observação` e um movimento `Cancelamento Venda` em `Movimentos_Estoque`.
+- **Confirmação obrigatória, verificada no backend**: `confirmado: true` mais o ID da venda
+  repetido em `confirmacaoIdVenda`, mais um motivo de no mínimo 5 caracteres. A tela pede o
+  ID digitado, mas a regra não mora só na tela.
+- Cancelar uma venda já cancelada é recusado — repetir a operação não pode devolver estoque
+  duas vezes.
+
+Não existe cancelamento de compra: só a venda tem esse caminho hoje.
+
 ## 7. Financeiro (empresa)
 
 - Aporte não é receita; resgate não é despesa; despesa operacional reduz lucro.

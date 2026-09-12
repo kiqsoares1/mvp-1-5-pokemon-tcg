@@ -618,6 +618,195 @@ function e2eRetiradas() {
  *
  * ⚠️ ESCREVE NA PLANILHA. Ver o cabeçalho deste arquivo.
  */
+// ============================================================
+// PASSO 8 — CANCELAMENTO DE VENDA
+// ============================================================
+
+/**
+ * Cancela uma venda e exige que o sistema volte exatamente ao estado
+ * anterior a ela.
+ *
+ * O invariante é esse: fotografa saldo do lote e lucro atribuído de cada
+ * sócio ANTES da venda, e depois do cancelamento tudo tem que bater com a
+ * foto. Um teste que só olhasse "o status virou Cancelada" passaria mesmo
+ * se o estoque não voltasse — que é o erro caro.
+ *
+ * Usa uma venda própria, criada aqui, para não desmontar a venda do passo
+ * anterior (de onde saem os asserts de lucro e a retirada).
+ *
+ * Escreve na planilha: uma venda, seu cancelamento e os movimentos.
+ */
+function e2eCancelamentoVenda(ids) {
+  var C_LIS = CONFIG.CAMPOS.LUCRO_POR_ITEM_SOCIO;
+  var C_LOTE = CONFIG.CAMPOS.LOTES_ESTOQUE;
+  var C_VENDA = CONFIG.CAMPOS.VENDAS;
+  var C_MOV = CONFIG.CAMPOS.MOVIMENTOS_ESTOQUE;
+
+  // --- Foto do estado anterior ---
+  var disponiveis = EstoqueService.listarLotesDisponiveisPorProduto(ids.idBooster);
+  if (disponiveis.length === 0) {
+    _e2eFalhar_('cancelamento', 'nenhum lote de booster disponível para a venda de teste',
+      { idBooster: ids.idBooster });
+  }
+
+  // O FIFO vai consumir o mais antigo; é o saldo dele que precisa voltar.
+  var loteAlvo = disponiveis[0];
+  var saldoAntes = _e2eNum_(loteAlvo.qtdDisponivel, 'qtdDisponivel do lote alvo', 'cancelamento');
+
+  var custoMaisAlto = 0;
+  disponiveis.forEach(function(l) { if (l.custoUnit > custoMaisAlto) custoMaisAlto = l.custoUnit; });
+  var precoUnit = Utils.arredondar(custoMaisAlto + 15, 2);
+
+  var lucroAntes = {};
+  SociosService.listarSocios(true).forEach(function(s) {
+    lucroAntes[s.idSocio] = _e2eNum_(s.lucroAtribuidoTotal, 'lucroAtribuidoTotal', 'cancelamento');
+  });
+
+  // --- Venda que será cancelada ---
+  var venda = VendaService.salvarVenda({
+    idRequisicao: _e2eIdReq_('VENDA-CANCEL'),
+    cabecalho: {
+      dataVenda: _e2eHoje_(), negocio: E2E_NEGOCIO, cliente: 'Cliente E2E Cancelamento',
+      taxaVenda: 0, freteVenda: 0, descontoVenda: 0, observacao: 'Venda E2E para cancelar'
+    },
+    itens: [{ idProduto: ids.idBooster, quantidade: 1, valorUnitarioVenda: precoUnit }]
+  });
+  if (!venda.sucesso) _e2eFalhar_('cancelamento', 'venda de teste deveria ter sido aceita', venda);
+
+  var saldoDepoisVenda = _e2eNum_(
+    parseFloat(_e2eLote_(loteAlvo.idLote)[C_LOTE.QTD_DISPONIVEL]), 'saldo após venda', 'cancelamento');
+  if (Math.abs((saldoAntes - 1) - saldoDepoisVenda) > 0.001) {
+    _e2eFalhar_('cancelamento', 'a venda de teste não baixou exatamente 1 do lote mais antigo',
+      { lote: loteAlvo.idLote, antes: saldoAntes, depois: saldoDepoisVenda });
+  }
+
+  // --- A confirmação tem que ser levada a sério pelo backend ---
+  // A tela já exige o ID digitado, mas a regra não pode morar só na tela:
+  // uma chamada direta ao backend precisa ser recusada igual.
+  var semConfirmar = VendaService.cancelarVenda({
+    idVenda: venda.idVenda, motivo: 'teste sem confirmacao'
+  });
+  if (semConfirmar.sucesso) {
+    _e2eFalhar_('cancelamento', 'cancelamento sem confirmado:true deveria ter sido recusado',
+      semConfirmar);
+  }
+
+  var idErrado = VendaService.cancelarVenda({
+    idVenda: venda.idVenda, motivo: 'teste com id errado',
+    confirmado: true, confirmacaoIdVenda: venda.idVenda + '-XX'
+  });
+  if (idErrado.sucesso) {
+    _e2eFalhar_('cancelamento', 'cancelamento com ID de confirmação divergente deveria ter sido recusado',
+      idErrado);
+  }
+
+  var semMotivo = VendaService.cancelarVenda({
+    idVenda: venda.idVenda, motivo: 'x',
+    confirmado: true, confirmacaoIdVenda: venda.idVenda
+  });
+  if (semMotivo.sucesso) {
+    _e2eFalhar_('cancelamento', 'cancelamento sem motivo descrito deveria ter sido recusado', semMotivo);
+  }
+
+  // Nenhuma das três recusas pode ter mexido em nada.
+  var saldoAposRecusas = parseFloat(_e2eLote_(loteAlvo.idLote)[C_LOTE.QTD_DISPONIVEL]);
+  if (Math.abs(saldoAposRecusas - saldoDepoisVenda) > 0.001) {
+    _e2eFalhar_('cancelamento', 'uma tentativa recusada mexeu no estoque',
+      { esperado: saldoDepoisVenda, encontrado: saldoAposRecusas });
+  }
+
+  // --- Cancelamento de verdade ---
+  var cancel = VendaService.cancelarVenda({
+    idVenda: venda.idVenda,
+    motivo: 'Cancelamento do fluxo E2E',
+    confirmado: true,
+    confirmacaoIdVenda: venda.idVenda
+  });
+  if (!cancel.sucesso) _e2eFalhar_('cancelamento', 'cancelamento deveria ter sido aceito', cancel);
+
+  // 1. O estoque voltou ao lote de origem, no valor exato.
+  var loteDepois = _e2eLote_(loteAlvo.idLote);
+  var saldoFinal = _e2eNum_(parseFloat(loteDepois[C_LOTE.QTD_DISPONIVEL]), 'saldo final', 'cancelamento');
+  if (Math.abs(saldoFinal - saldoAntes) > 0.001) {
+    _e2eFalhar_('cancelamento', 'o estoque não voltou ao valor anterior à venda',
+      { lote: loteAlvo.idLote, antesDaVenda: saldoAntes, depoisDoCancelamento: saldoFinal });
+  }
+
+  // 2. A venda está marcada como Cancelada.
+  var regVenda = SheetService.buscarPrimeiroPorCampo(CONFIG.ABAS.VENDAS, C_VENDA.ID_VENDA, venda.idVenda);
+  if (!regVenda || Utils.normalizar(regVenda.dados[C_VENDA.STATUS]).toLowerCase() !== 'cancelada') {
+    _e2eFalhar_('cancelamento', 'a venda não ficou com status Cancelada',
+      { status: regVenda ? regVenda.dados[C_VENDA.STATUS] : 'venda não encontrada' });
+  }
+
+  // 3. O lucro de cada sócio voltou ao que era antes da venda.
+  var divergencias = [];
+  SociosService.listarSocios(true).forEach(function(s) {
+    var antes = lucroAntes[s.idSocio];
+    if (antes === undefined) return; // sócio que não existia antes
+    var agora = _e2eNum_(s.lucroAtribuidoTotal, 'lucroAtribuidoTotal pós-cancelamento', 'cancelamento');
+    if (Math.abs(agora - antes) > 0.02) {
+      divergencias.push({ socio: s.nome, antes: antes, depois: agora });
+    }
+  });
+  if (divergencias.length > 0) {
+    _e2eFalhar_('cancelamento', 'o lucro atribuído aos sócios não voltou ao valor anterior à venda',
+      { divergencias: divergencias });
+  }
+
+  // 4. A soma do lucro da venda em Lucro_Por_Item_Socio zerou — as linhas
+  //    originais continuam lá, com o espelho negativo ao lado.
+  var linhasLucro = SheetService.buscarPorCampo(CONFIG.ABAS.LUCRO_POR_ITEM_SOCIO,
+    C_LIS.ID_VENDA, venda.idVenda);
+  var somaLucro = 0;
+  linhasLucro.forEach(function(r) {
+    somaLucro += _e2eNum_(parseFloat(r.dados[C_LIS.LUCRO_ATRIBUIDO_SOCIO]),
+      'lucroAtribuidoSocio pós-estorno', 'cancelamento');
+  });
+  if (Math.abs(Utils.arredondar(somaLucro, 2)) > 0.02) {
+    _e2eFalhar_('cancelamento', 'o lucro da venda cancelada não zerou em Lucro_Por_Item_Socio',
+      { soma: somaLucro, linhas: linhasLucro.length });
+  }
+
+  // 5. O movimento de devolução ficou registrado e é rastreável pela venda.
+  var movs = SheetService.buscarPorCampo(CONFIG.ABAS.MOVIMENTOS_ESTOQUE,
+    C_MOV.REF_OPERACAO, venda.idVenda);
+  var temCancelamento = false;
+  movs.forEach(function(r) {
+    if (Utils.normalizar(r.dados[C_MOV.TIPO_MOVIMENTO]) === 'Cancelamento Venda') temCancelamento = true;
+  });
+  if (!temCancelamento) {
+    _e2eFalhar_('cancelamento', 'não foi registrado movimento de Cancelamento Venda',
+      { venda: venda.idVenda, movimentosEncontrados: movs.length });
+  }
+
+  // 6. Cancelar de novo tem que ser recusado — repetir a operação não pode
+  //    devolver estoque duas vezes.
+  var repetido = VendaService.cancelarVenda({
+    idVenda: venda.idVenda, motivo: 'tentativa repetida do E2E',
+    confirmado: true, confirmacaoIdVenda: venda.idVenda
+  });
+  if (repetido.sucesso) {
+    _e2eFalhar_('cancelamento', 'cancelar uma venda já cancelada deveria ter sido recusado', repetido);
+  }
+
+  var saldoAposRepetir = parseFloat(_e2eLote_(loteAlvo.idLote)[C_LOTE.QTD_DISPONIVEL]);
+  if (Math.abs(saldoAposRepetir - saldoAntes) > 0.001) {
+    _e2eFalhar_('cancelamento', 'a segunda tentativa de cancelamento mexeu no estoque',
+      { esperado: saldoAntes, encontrado: saldoAposRepetir });
+  }
+
+  return {
+    idVenda: venda.idVenda,
+    loteDevolvido: loteAlvo.idLote,
+    saldoAntesDaVenda: saldoAntes,
+    saldoDepoisDoCancelamento: saldoFinal,
+    linhasLucroNaVenda: linhasLucro.length,
+    somaLucroAposEstorno: Utils.arredondar(somaLucro, 2),
+    recusasConfirmadas: ['sem confirmado', 'ID divergente', 'sem motivo', 'já cancelada']
+  };
+}
+
 function testarFluxoCompletoE2E() {
   var resultados = {};
   try {
@@ -629,6 +818,7 @@ function testarFluxoCompletoE2E() {
     resultados.venda = e2eVenda(resultados.produtos, resultados.abertura);
     resultados.vendaSaldoInsuficiente = e2eVendaSaldoInsuficiente(resultados.produtos);
     resultados.retiradas = e2eRetiradas();
+    resultados.cancelamentoVenda = e2eCancelamentoVenda(resultados.produtos);
     resultados.sucesso = true;
   } catch (e) {
     resultados.sucesso = false;

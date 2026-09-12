@@ -64,6 +64,7 @@
   if (section === 'abertura') loadProdutosFracionaveis();
   if (section === 'logs') loadLogs();
   if (['compra', 'venda', 'precos'].indexOf(section) !== -1) loadProductsForForms();
+  if (section === 'venda') loadVendasCancelaveis();
   }
 
   function meiCardHtml(alerta) {
@@ -515,6 +516,143 @@
   $('precoForm').addEventListener('submit', function(e) { e.preventDefault(); var d = formData(e.target); var p = selectedProduct(d.idProduto); var payload = { idRequisicao: uuid('UI-PRECO'), dataReferencia: todayBR(), idProduto: d.idProduto, negocio: p.negocio || NEGOCIO, precoUnitario: d.precoUnitario, fonte: d.fonte || 'Manual', linkReferencia: d.linkReferencia, estadoCondicao: p.estado || '', observacao: d.observacao }; callServer('uiRegistrarPrecoManual', [payload]).then(function(res) { writeResult('precoResult', res); }).catch(function(err) { writeResult('precoResult', { sucesso: false, erro: err.message }); }); });
   }
 
+
+  // ============================================================
+  // CANCELAMENTO DE VENDA
+  // ============================================================
+  // O fluxo é deliberadamente de duas etapas: analisar, depois confirmar.
+  // A primeira etapa não grava nada e mostra exatamente o que vai mudar;
+  // o botão vermelho só desbloqueia depois que o operador digitou o ID da
+  // venda de novo. É atrito de propósito — cancelar devolve estoque e tira
+  // lucro já atribuído aos sócios.
+
+  var cancelState = { analise: null };
+
+  function loadVendasCancelaveis() {
+  return callServer('uiListarVendas', [30]).then(function(res) {
+  var sel = $('cancelVendaSelect');
+  var vendas = (res.vendas || []);
+  sel.innerHTML = '<option value="">Selecione a venda…</option>' + vendas.map(function(v) {
+  var cancelada = String(v.status || '').toLowerCase().indexOf('cancelada') !== -1;
+  var rotulo = v.idVenda + ' — ' + (v.data || '') + ' — ' + money(v.valorBruto) +
+  (v.cliente ? ' — ' + v.cliente : '') + (cancelada ? ' [JÁ CANCELADA]' : '');
+  return '<option value="' + escapeHtml(v.idVenda) + '"' + (cancelada ? ' disabled' : '') + '>' +
+  escapeHtml(rotulo) + '</option>';
+  }).join('');
+  resetCancelForm();
+  }).catch(function(err) { showMessage('Não foi possível listar as vendas: ' + err.message, 'err'); });
+  }
+
+  function resetCancelForm() {
+  cancelState.analise = null;
+  $('cancelImpacto').innerHTML = '';
+  $('cancelVendaForm').hidden = true;
+  $('cancelVendaForm').reset();
+  $('cancelConfirmarBtn').disabled = true;
+  $('cancelResult').textContent = '';
+  }
+
+  function renderImpactoCancelamento(a) {
+  var html = '';
+
+  if (!a.valido) {
+  html += '<div class="alert err"><strong>Não é possível cancelar esta venda.</strong><ul class="impacto-lista">' +
+  a.erros.map(function(e) { return '<li>' + escapeHtml(e) + '</li>'; }).join('') + '</ul></div>';
+  $('cancelImpacto').innerHTML = html;
+  $('cancelVendaForm').hidden = true;
+  return;
+  }
+
+  var v = a.venda;
+  html += '<div class="alert warn"><strong>Confira antes de confirmar — esta ação desfaz dinheiro.</strong>';
+  html += '<ul class="impacto-lista">';
+  html += '<li>Venda <strong>' + escapeHtml(v.idVenda) + '</strong> de ' + escapeHtml(String(v.data || '')) +
+  ', valor bruto ' + money(v.valorBruto) + ', passa a <strong>Cancelada</strong>.</li>';
+
+  a.lotes.forEach(function(l) {
+  html += '<li>Lote <strong>' + escapeHtml(l.idLote) + '</strong> (' + escapeHtml(String(l.produto || '')) +
+  ') recebe <strong>+' + l.devolver + '</strong> de volta: ' + l.disponivelAtual + ' → ' +
+  l.disponivelFinal +
+  (l.statusAtual !== l.statusFinal ? ', status ' + escapeHtml(l.statusAtual) + ' → ' + escapeHtml(l.statusFinal) : '') +
+  '.</li>';
+  });
+
+  if (a.lucro && a.lucro.jaEstornado) {
+  html += '<li>O lucro desta venda já havia sido estornado — nada muda para os sócios.</li>';
+  } else if (a.lucro && a.lucro.porSocio.length) {
+  a.lucro.porSocio.forEach(function(s) {
+  html += '<li><strong>' + escapeHtml(s.nome) + '</strong> perde ' + money(s.lucroDaVenda) +
+  ' de lucro atribuído: disponível ' + money(s.disponivelAtual) + ' → ' + money(s.disponivelDepois) + '.</li>';
+  });
+  } else {
+  html += '<li>Nenhum lucro foi atribuído a sócios nesta venda — não há estorno a fazer.</li>';
+  }
+
+  html += '</ul></div>';
+
+  (a.avisos || []).forEach(function(av) {
+  html += '<div class="alert warn">' + escapeHtml(av) + '</div>';
+  });
+
+  $('cancelImpacto').innerHTML = html;
+  $('cancelVendaForm').hidden = false;
+  $('cancelConfirmarBtn').disabled = true;
+  }
+
+  function bindCancelamento() {
+  $('cancelVendaSelect').addEventListener('change', resetCancelForm);
+
+  $('cancelAnalisarBtn').addEventListener('click', function() {
+  var idVenda = $('cancelVendaSelect').value;
+  resetCancelForm();
+  if (!idVenda) { showMessage('Selecione a venda que quer cancelar.', 'err'); return; }
+  callServer('uiAnalisarCancelamentoVenda', [idVenda]).then(function(res) {
+  if (!res.sucesso || !res.analise) { writeResult('cancelResult', res); return; }
+  cancelState.analise = res.analise;
+  renderImpactoCancelamento(res.analise);
+  }).catch(function(err) { writeResult('cancelResult', { sucesso: false, erro: err.message }); });
+  });
+
+  // O botão só acorda quando o ID digitado bate com a venda selecionada.
+  $('cancelVendaForm').querySelector('input[name="confirmacaoIdVenda"]')
+  .addEventListener('input', function(e) {
+  var idVenda = $('cancelVendaSelect').value;
+  var bate = idVenda && e.target.value.trim().toUpperCase() === String(idVenda).toUpperCase();
+  $('cancelConfirmarBtn').disabled = !bate;
+  });
+
+  $('cancelVendaForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var d = formData(e.target);
+  var idVenda = $('cancelVendaSelect').value;
+  if (!idVenda) { writeResult('cancelResult', { sucesso: false, erro: 'Selecione a venda.' }); return; }
+
+  var resumo = 'Cancelar a venda ' + idVenda + '?\n\nO estoque volta ao lote de origem e o ' +
+  'lucro já atribuído aos sócios é estornado.\n\nEsta ação não tem desfazer pelo Portal.';
+  if (!window.confirm(resumo)) return;
+
+  $('cancelConfirmarBtn').disabled = true;
+  callServer('uiCancelarVenda', [{
+  idVenda: idVenda,
+  motivo: d.motivo,
+  confirmado: true,
+  confirmacaoIdVenda: d.confirmacaoIdVenda
+  }]).then(function(res) {
+  writeResult('cancelResult', res);
+  if (res.sucesso) {
+  showMessage('Venda ' + idVenda + ' cancelada.', 'ok');
+  loadVendasCancelaveis();
+  loadDashboard();
+  } else {
+  $('cancelConfirmarBtn').disabled = false;
+  }
+  }).catch(function(err) {
+  writeResult('cancelResult', { sucesso: false, erro: err.message });
+  $('cancelConfirmarBtn').disabled = false;
+  });
+  });
+  }
+
   function bindActions() {
   document.querySelectorAll('.nav-item').forEach(function(btn) { btn.addEventListener('click', function() { go(btn.dataset.section); }); });
   document.querySelectorAll('[data-go]').forEach(function(btn) { btn.addEventListener('click', function() { go(btn.dataset.go); }); });
@@ -530,6 +668,7 @@
   $('loadLogsBtn').addEventListener('click', loadLogs);
   $('healthBtn').addEventListener('click', loadHealth);
   $('buscarPrecoBtn').addEventListener('click', function() { var d = formData($('precoForm')); callServer('uiBuscarPrecoProduto', [{ idProduto: d.idProduto }]).then(function(res) { writeResult('precoResult', res); }).catch(function(err) { writeResult('precoResult', { sucesso: false, erro: err.message }); }); });
+  bindCancelamento();
   }
 
   document.addEventListener('DOMContentLoaded', function() { bindActions(); bindForms(); loadProductsForForms(); go('dashboard'); });

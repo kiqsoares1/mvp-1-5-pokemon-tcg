@@ -550,8 +550,345 @@ var VendaService = (function () {
     };
   }
 
+  // Prefixo do log que marca uma venda efetivamente cancelada. Mesmo
+  // contrato do MARCA_LOG_VENDA_REGISTRADA: alterar aqui e na mensagem
+  // juntos.
+  var MARCA_LOG_VENDA_CANCELADA = 'Venda cancelada:';
+
+  /**
+   * Levanta tudo o que o cancelamento de uma venda vai mexer, SEM gravar
+   * nada. É o que a tela usa para montar o aviso de confirmação, e o que
+   * cancelarVenda usa para recusar antes de tocar em qualquer aba.
+   *
+   * Separar isso de cancelarVenda é o ponto central do desenho: o
+   * cancelamento mexe em três lugares que precisam mudar juntos (lote,
+   * movimento, lucro dos sócios) e não há transação no Apps Script. Se a
+   * checagem do lucro só acontecesse na hora de estornar, uma recusa lá
+   * deixaria o estoque já devolvido e a venda meio cancelada.
+   *
+   * @param {string} idVenda
+   * @returns {{valido: boolean, erros: Array, venda: Object, itens: Array,
+   *            lotes: Array, lucro: Object, avisos: Array}}
+   */
+  function analisarCancelamento(idVenda) {
+    var vazio = { valido: false, erros: [], venda: null, itens: [], lotes: [], lucro: null, avisos: [] };
+
+    if (Utils.eVazio(idVenda)) {
+      vazio.erros.push('Informe o ID da venda a cancelar.');
+      return vazio;
+    }
+
+    var regVenda = SheetService.buscarPrimeiroPorCampo(ABA_VENDAS, C_VENDA.ID_VENDA, idVenda);
+    if (!regVenda) {
+      vazio.erros.push('Venda não encontrada: ' + idVenda);
+      return vazio;
+    }
+
+    var dadosVenda = regVenda.dados;
+    var status = _normalizar(dadosVenda[C_VENDA.STATUS] || '');
+    if (status === 'cancelada') {
+      vazio.erros.push('Esta venda já está cancelada.');
+      return vazio;
+    }
+
+    var itensVenda = SheetService.buscarPorCampo(ABA_ITENS, C_ITEM.ID_VENDA, idVenda);
+    if (itensVenda.length === 0) {
+      vazio.erros.push('Venda sem itens registrados — não há estoque para devolver. ' +
+        'Verifique a aba ' + ABA_ITENS + ' antes de prosseguir.');
+      return vazio;
+    }
+
+    var erros = [];
+    var avisos = [];
+
+    // Devolução ao lote de origem: cada item volta ao mesmo lote que
+    // consumiu, restaurando o FIFO exatamente como estava. Vários itens
+    // podem ter consumido o mesmo lote (venda grande atravessa lotes), por
+    // isso o acumulado por lote antes de decidir o saldo final.
+    var porLote = {};
+    var itens = [];
+
+    itensVenda.forEach(function(r) {
+      var it = r.dados;
+      var idLote = it[C_ITEM.ID_LOTE];
+      var qtd = _numero(it[C_ITEM.QTD_VENDIDA]);
+
+      itens.push({
+        idItem: it[C_ITEM.ID_ITEM],
+        idLote: idLote,
+        idProduto: it[C_ITEM.ID_PRODUTO],
+        produto: it[C_ITEM.PRODUTO],
+        negocio: it[C_ITEM.NEGOCIO],
+        quantidade: qtd,
+        lucroBruto: _numero(it[C_ITEM.LUCRO_BRUTO])
+      });
+
+      if (Utils.eVazio(idLote)) {
+        erros.push('Item ' + it[C_ITEM.ID_ITEM] + ' não registra de qual lote saiu — ' +
+          'não dá para devolver o estoque com segurança.');
+        return;
+      }
+      if (!(qtd > 0)) {
+        erros.push('Item ' + it[C_ITEM.ID_ITEM] + ' tem quantidade inválida (' +
+          it[C_ITEM.QTD_VENDIDA] + ').');
+        return;
+      }
+      porLote[idLote] = Utils.arredondar((porLote[idLote] || 0) + qtd, 4);
+    });
+
+    var lotes = [];
+    Object.keys(porLote).forEach(function(idLote) {
+      var regLote = SheetService.buscarPrimeiroPorCampo(ABA_LOTES, C_LOTE.ID_LOTE, idLote);
+      if (!regLote) {
+        erros.push('Lote ' + idLote + ' não existe mais — o estoque desta venda não tem ' +
+          'para onde voltar.');
+        return;
+      }
+
+      var d = regLote.dados;
+      var devolver = porLote[idLote];
+      var disponivel = _numero(d[C_LOTE.QTD_DISPONIVEL]);
+      var vendida = _numero(d[C_LOTE.QTD_VENDIDA]);
+      var statusLote = _normalizar(d[C_LOTE.STATUS] || '');
+
+      // Se o lote não registra ter vendido ao menos o que esta venda levou,
+      // alguma outra coisa já mexeu nele. Devolver por cima inventaria
+      // estoque que não existe — é exatamente o erro que o cancelamento
+      // deveria evitar.
+      if (vendida + 0.005 < devolver) {
+        erros.push('Lote ' + idLote + ' registra ' + vendida + ' vendida(s), menos que as ' +
+          devolver + ' desta venda. O lote foi alterado depois — cancelamento bloqueado ' +
+          'para não criar estoque do nada.');
+        return;
+      }
+
+      var novoStatus = d[C_LOTE.STATUS];
+      // Hold é patrimônio, não prejuízo: um lote posto em Hold depois da
+      // venda continua em Hold ao receber a devolução. Só o Encerrado
+      // (que é consequência do saldo ter zerado) volta a Disponível.
+      if (statusLote === 'encerrado') novoStatus = 'Disponível';
+
+      if (statusLote === 'hold') {
+        avisos.push('O lote ' + idLote + ' está em Hold: a devolução entra nele e ' +
+          'continua em Hold, sem voltar a ficar vendável.');
+      }
+
+      lotes.push({
+        idLote: idLote,
+        linha: regLote.linha,
+        idProduto: d[C_LOTE.ID_PRODUTO],
+        produto: d[C_LOTE.PRODUTO],
+        negocio: d[C_LOTE.NEGOCIO],
+        devolver: devolver,
+        disponivelAtual: disponivel,
+        disponivelFinal: Utils.arredondar(disponivel + devolver, 4),
+        vendidaFinal: Utils.arredondar(vendida - devolver, 4),
+        statusAtual: d[C_LOTE.STATUS],
+        statusFinal: novoStatus
+      });
+    });
+
+    // Lucro dos sócios: checado aqui, recusado aqui.
+    var lucro = { pode: true, jaEstornado: false, linhas: 0, porSocio: [], bloqueios: [] };
+    if (typeof SociosService !== 'undefined' && SociosService.verificarEstornoLucro) {
+      lucro = SociosService.verificarEstornoLucro(idVenda);
+      if (!lucro.pode) erros = erros.concat(lucro.bloqueios);
+    }
+
+    // Venda de mês anterior: não bloqueia (decisão do Kaique — cancelamento
+    // sem limite de data), mas o operador precisa saber que está mexendo em
+    // mês fechado e no acumulado do MEI, que o sistema monitora.
+    var dataVenda = Utils.paraData(dadosVenda[C_VENDA.DATA_VENDA]);
+    if (dataVenda) {
+      var hoje = new Date();
+      if (dataVenda.getFullYear() !== hoje.getFullYear() ||
+          dataVenda.getMonth() !== hoje.getMonth()) {
+        avisos.push('Esta venda é de ' + Utils.formatarData(dataVenda) + ', de um mês já ' +
+          'encerrado. Cancelar altera o resultado daquele mês e o acumulado do ' +
+          'faturamento MEI do ano.');
+      }
+    }
+
+    return {
+      valido: erros.length === 0,
+      erros: erros,
+      venda: {
+        idVenda: idVenda,
+        linha: regVenda.linha,
+        data: dadosVenda[C_VENDA.DATA_VENDA],
+        negocio: dadosVenda[C_VENDA.NEGOCIO],
+        cliente: dadosVenda[C_VENDA.CLIENTE_CANAL],
+        valorBruto: _numero(dadosVenda[C_VENDA.VALOR_BRUTO]),
+        valorLiquido: _numero(dadosVenda[C_VENDA.VALOR_LIQUIDO]),
+        status: dadosVenda[C_VENDA.STATUS]
+      },
+      itens: itens,
+      lotes: lotes,
+      lucro: lucro,
+      avisos: avisos
+    };
+  }
+
+  function _montarMovimentoCancelamento(idMov, lote, idVenda) {
+    var cab = _cabecalhos(ABA_MOV);
+    var linha = {};
+
+    linha[C_MOV.ID_MOVIMENTO] = idMov;
+    linha[C_MOV.DATA_MOVIMENTO] = Utils.formatarData(Utils.agora());
+    linha[C_MOV.TIPO_MOVIMENTO] = 'Cancelamento Venda';
+    linha[C_MOV.ID_LOTE] = lote.idLote;
+    linha[C_MOV.PRODUTO] = lote.produto;
+    linha[C_MOV.NEGOCIO] = lote.negocio;
+    linha[C_MOV.QTD_MOVIMENTO] = lote.devolver;
+    linha[C_MOV.SALDO_ANTERIOR] = lote.disponivelAtual;
+    linha[C_MOV.SALDO_POSTERIOR] = lote.disponivelFinal;
+    linha[C_MOV.REF_OPERACAO] = idVenda;
+    linha[C_MOV.DATA_REGISTRO] = Utils.timestamp();
+    linha[C_MOV.USUARIO_REGISTRO] = Utils.usuarioAtivo();
+
+    _setSeExiste(linha, cab, 'ID Produto', lote.idProduto);
+    _setSeExiste(linha, cab, 'Subtipo Movimento', 'Devolução por cancelamento');
+    _setSeExiste(linha, cab, 'Observação', 'Cancelamento da venda ' + idVenda);
+
+    return linha;
+  }
+
+  /**
+   * Cancela uma venda: devolve o estoque ao lote de origem, registra o
+   * movimento de devolução, marca a venda como Cancelada e estorna o lucro
+   * atribuído aos sócios.
+   *
+   * Exige confirmação explícita no payload (`confirmado: true` e o ID da
+   * venda repetido em `confirmacaoIdVenda`) — é uma operação destrutiva de
+   * dinheiro e não pode acontecer por um clique errado. A tela pede o ID
+   * digitado; esta checagem existe para o backend também não aceitar uma
+   * chamada acidental.
+   *
+   * @param {{idVenda: string, motivo: string, confirmado: boolean,
+   *          confirmacaoIdVenda: string}} payload
+   */
+  function cancelarVenda(payload) {
+    payload = payload || {};
+    var idVenda = Utils.normalizar(payload.idVenda || '');
+    var motivo = Utils.normalizar(payload.motivo || '');
+
+    if (payload.confirmado !== true) {
+      return _erro('Cancelamento não confirmado.', [], idVenda, 'cancelarVenda');
+    }
+    if (Utils.normalizar(payload.confirmacaoIdVenda || '') !== idVenda) {
+      return _erro('O ID digitado na confirmação não corresponde à venda que será cancelada.',
+        [], idVenda, 'cancelarVenda');
+    }
+    if (motivo.length < 5) {
+      return _erro('Descreva o motivo do cancelamento (mínimo 5 caracteres) — ele fica ' +
+        'registrado no log do sistema.', [], idVenda, 'cancelarVenda');
+    }
+
+    LogService.info('VendaService', 'cancelarVenda',
+      'Iniciando cancelamento da venda ' + idVenda, idVenda);
+
+    var idsMov = [];
+    var analise;
+    var lock = LockService.getDocumentLock();
+
+    try {
+      lock.waitLock(15000);
+
+      // Reanálise DENTRO do lock: a análise que a tela mostrou pode ter
+      // minutos de idade e outra operação pode ter consumido o lote nesse
+      // intervalo. O que vale é o estado de agora.
+      analise = analisarCancelamento(idVenda);
+      if (!analise.valido) {
+        return _erro(analise.erros.join(' | '), analise.erros, idVenda, 'cancelarVenda');
+      }
+
+      // 1. Devolve o estoque a cada lote de origem.
+      var linhasMov = [];
+      analise.lotes.forEach(function(lote) {
+        var idMov = IdService.gerarIdMovimento();
+        idsMov.push(idMov);
+        linhasMov.push(_montarMovimentoCancelamento(idMov, lote, idVenda));
+
+        var atualizacoes = {};
+        atualizacoes[C_LOTE.QTD_DISPONIVEL] = lote.disponivelFinal;
+        atualizacoes[C_LOTE.QTD_VENDIDA] = lote.vendidaFinal;
+        atualizacoes[C_LOTE.STATUS] = lote.statusFinal;
+        atualizacoes['Saldo Atual'] = lote.disponivelFinal;
+        _atualizarCamposLinhaSemLock(ABA_LOTES, lote.linha, atualizacoes);
+      });
+
+      if (linhasMov.length > 0) _appendObjetosSemLock(ABA_MOV, linhasMov);
+
+      // 2. Marca a venda como Cancelada.
+      var cabVenda = _cabecalhos(ABA_VENDAS);
+      var attVenda = {};
+      attVenda[C_VENDA.STATUS] = 'Cancelada';
+      if (_temCampo(cabVenda, 'Observação')) {
+        attVenda['Observação'] = 'CANCELADA em ' + Utils.timestamp() + ' por ' +
+          Utils.usuarioAtivo() + ' | Motivo: ' + motivo;
+      }
+      _atualizarCamposLinhaSemLock(ABA_VENDAS, analise.venda.linha, attVenda);
+
+    } catch (e) {
+      LogService.error('VendaService', 'cancelarVenda',
+        'Erro técnico ao cancelar venda ' + idVenda + ': ' + e.message, idVenda);
+      return {
+        sucesso: false,
+        idVenda: idVenda,
+        idsMov: [],
+        erro: 'Erro técnico ao cancelar venda: ' + e.message,
+        detalhes: [e.message]
+      };
+    } finally {
+      try { lock.releaseLock(); } catch (le) {}
+    }
+
+    LogService.warning('VendaService', 'cancelarVenda',
+      MARCA_LOG_VENDA_CANCELADA + ' ' + idVenda + ' | Lotes devolvidos: ' +
+      analise.lotes.length + ' | Motivo: ' + motivo, idVenda);
+
+    // 3. Estorno do lucro dos sócios. Roda fora do lock, como o
+    // reconhecimento faz na venda — e já passou pela checagem de bloqueio
+    // dentro do lock, na reanálise.
+    var estorno = { sucesso: true, linhas: 0, erro: null };
+    try {
+      if (typeof SociosService !== 'undefined' && SociosService.estornarLucroDaVenda) {
+        estorno = SociosService.estornarLucroDaVenda(idVenda, motivo);
+      }
+    } catch (se) {
+      estorno = { sucesso: false, linhas: 0, erro: se.message };
+    }
+
+    if (!estorno.sucesso) {
+      // A venda já está cancelada e o estoque já voltou. Não dá para
+      // desfazer isso aqui sem inventar um segundo caminho de escrita —
+      // então o que fica é o rastro alto, porque é dinheiro de sócio
+      // pendurado numa venda que não existe mais.
+      LogService.error('VendaService', 'cancelarVenda',
+        'Venda ' + idVenda + ' foi cancelada e o estoque devolvido, mas o estorno do ' +
+        'lucro dos sócios FALHOU: ' + estorno.erro + '. Corrigir manualmente.', idVenda);
+    }
+
+    return {
+      sucesso: true,
+      idVenda: idVenda,
+      idsMov: idsMov,
+      erro: null,
+      estornoLucro: estorno,
+      detalhes: [
+        'Venda cancelada: ' + idVenda,
+        'Lotes devolvidos: ' + analise.lotes.map(function(l) {
+          return l.idLote + ' (+' + l.devolver + ')';
+        }).join(', '),
+        'Linhas de estorno de lucro: ' + estorno.linhas
+      ]
+    };
+  }
+
   return {
-    salvarVenda: salvarVenda
+    salvarVenda: salvarVenda,
+    analisarCancelamento: analisarCancelamento,
+    cancelarVenda: cancelarVenda
   };
 
 })();

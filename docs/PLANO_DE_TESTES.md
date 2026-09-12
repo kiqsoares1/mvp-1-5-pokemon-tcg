@@ -83,6 +83,29 @@ continuam sendo verificação manual pelo Portal.
 - [ ] Conferir `Lucro_Por_Item_Socio`: a % gravada é a vigente na data da venda, mesmo que
       a participação mude depois (não deve retroagir).
 
+## 5b. Cancelamento de venda
+
+Regras em `REGRAS_DE_NEGOCIO.md`, seção 6.1. O passo `e2eCancelamentoVenda` do
+`testarFluxoCompletoE2E()` cobre os automatizáveis; os manuais são os de tela.
+
+- [ ] **(E2E)** Cancelar uma venda devolve o estoque ao lote de origem, no valor exato, e o
+      saldo volta a ser o de antes da venda.
+- [ ] **(E2E)** Venda cancelada fica com status `Cancelada` e motivo em `Observação`.
+- [ ] **(E2E)** O lucro atribuído a cada sócio volta ao valor anterior à venda, e a soma das
+      linhas dela em `Lucro_Por_Item_Socio` zera (originais + espelho negativo).
+- [ ] **(E2E)** Movimento `Cancelamento Venda` registrado, rastreável pelo ID da venda.
+- [ ] **(E2E)** Recusa: sem `confirmado`, com ID de confirmação divergente, com motivo curto,
+      e ao cancelar uma venda já cancelada — nenhuma delas pode mexer no estoque.
+- [ ] **(E2E)** Lote cujo saldo foi alterado depois da venda bloqueia o cancelamento (não
+      inventar estoque).
+- [ ] **Manual (Portal)**: o botão vermelho só habilita depois de digitar o ID da venda
+      correto; o painel de impacto lista lotes e sócios afetados antes de confirmar.
+- [ ] **Manual (Portal)**: venda de mês anterior mostra o aviso de mês fechado / MEI e ainda
+      assim permite cancelar.
+- [ ] **Manual**: sócio que já retirou o lucro → cancelamento recusado nomeando o sócio.
+      (Difícil de montar no E2E sem sujar a massa; conferir na mão pelo menos uma vez.)
+- [ ] **Manual**: lote em `Hold` recebe a devolução e continua em `Hold`.
+
 ## 6. Dashboard / MEI
 
 - [ ] Com faturamento anual abaixo de 80% do teto MEI → card de alerta não aparece (ou

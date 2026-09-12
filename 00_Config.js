@@ -107,7 +107,9 @@
  CUSTO_TOTAL:          'Custo Total Compra',
  STATUS:               'Status Compra',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ OBSERVACAO:           'Observação',
+ ID_REQUISICAO:        'ID Requisição'
  },
 
  ITENS_COMPRA: {
@@ -138,7 +140,9 @@
  VALOR_LIQUIDO:        'Valor Líquido Venda',
  STATUS:               'Status Venda',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ OBSERVACAO:           'Observação',
+ ID_REQUISICAO:        'ID Requisição'
  },
 
  ITENS_VENDA: {
@@ -191,7 +195,11 @@
  SALDO_POSTERIOR:      'Saldo Posterior',
  REF_OPERACAO:         'Referência Operação',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ SUBTIPO_MOVIMENTO:    'Subtipo Movimento',
+ STATUS_DESTINO:       'Status Destino',
+ CUSTO_UNIT_MOVIMENTO: 'Custo Unitário Movimento',
+ OBSERVACAO:           'Observação'
  },
 
  POKEMON_ABERTURA_BOX: {
@@ -209,7 +217,8 @@
  CUSTO_UNIT_DESTINO:   'Custo Unitário Destino',
  STATUS:               'Status Abertura',
  DATA_REGISTRO:        'Data Registro',
- USUARIO_REGISTRO:     'Usuário Registro'
+ USUARIO_REGISTRO:     'Usuário Registro',
+ OBSERVACAO:           'Observação'
  },
 
  APORTES_RESGATES: {
@@ -497,7 +506,8 @@
  STATUS_VENDA:       ['Rascunho', 'Concluída', 'Cancelada', 'Bloqueada'],
  STATUS_COMPRA:      ['Rascunho', 'Concluída', 'Cancelada', 'Erro'],
  TIPOS_MOVIMENTO:    ['Compra', 'Venda', 'Entrada Hold', 'Saída Hold',
- 'Abertura Origem', 'Abertura Destino', 'Ajuste'],
+ 'Abertura Origem', 'Abertura Destino', 'Ajuste',
+ 'Cancelamento Venda'],
  SEVERIDADES_LOG:    ['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
  FONTES_PRECO:       ['LigaPokemon', 'Marketplace', 'Manual', 'Outro'],
  CATEGORIAS_DESPESA: ['Taxa Plataforma', 'Frete', 'Embalagem', 'Operacional', 'Outro'],
