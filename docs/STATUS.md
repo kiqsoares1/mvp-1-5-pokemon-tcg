@@ -32,11 +32,22 @@ Antes disso, por erro de automação (o editor demorou a trocar a função selec
 além do que o fluxo completo faria. Lição: no editor do Apps Script, conferir a função
 selecionada pela página Execuções, não pelo rótulo do dropdown.
 
+**Depois, na mesma sessão:**
+- Kaique aprovou a tela de cancelamento ("a tela está boa").
+- `e2eRetiradas` reordenado: retirada válida **antes** da retirada acima do limite, para o
+  assert de baixa exata do lucro disponível rodar de fato. Publicado na HML (`clasp push`).
+- "Aplicar Proteções de Abas" rodado pelo menu: 16 abas protegidas em modo HML (somente
+  aviso), sem erros — inclui `Socios`, `Aportes_Socios` e `Retiradas`, pendentes desde a
+  sessão 2.
+- `compraProdutoInativo` continua pulado: o E2E só insere, e não há como criar produto
+  inativo sem editar linha. Depende da decisão sobre inativação de produto pelo Portal.
+
 **Pendente:**
-- QA manual da tela de cancelamento (seção 5b do `PLANO_DE_TESTES.md`).
-- Abrir PR de `feat/cancelamento-venda` para o `main`.
-- Demais pendências da sessão 8 (proteções de abas, cancelamento de compra, inativação de
-  produto, produção) seguem de pé.
+- Rodar `testarFluxoCompletoE2E()` de novo na HML, para validar o novo `e2eRetiradas`
+  (precisa ser disparado pelo Kaique no editor).
+- Criar o PR de `feat/cancelamento-venda` para o `main` (o Chrome não está logado no GitHub
+  e não há `gh` instalado na máquina).
+- Decisões: cancelamento de compra, inativação de produto pelo Portal, produção.
 
 ## 2026-09-12 (sessão 8 — cancelamento de venda)
 
