@@ -545,32 +545,17 @@ function e2eRetiradas() {
     };
   }
 
-  // 1) Acima do limite → não pode aprovar mais que o limite
-  var excesso = Utils.arredondar(limite * 2 + 100, 2);
-  var acima = SociosService.solicitarRetirada({
-    idSocio: alvo.idSocio,
-    valorSolicitado: excesso,
-    idRequisicao: _e2eIdReq_('RET-ACIMA'),
-    data: _e2eHoje_(),
-    observacao: 'E2E retirada acima do limite'
-  });
-  var aprovadoAcima = _e2eNum_(acima.valorAprovado, 'retiradaAcima.valorAprovado', 'retiradas');
-  if (aprovadoAcima > limite + 0.01) {
-    _e2eFalhar_('retiradas', 'retirada aprovou acima do limite calculado',
-      { solicitado: excesso, limite: limite, aprovado: aprovadoAcima });
-  }
-  if (acima.status === 'Aprovada') {
-    _e2eFalhar_('retiradas', 'retirada acima do limite não podia sair como "Aprovada" integral',
-      { status: acima.status, solicitado: excesso, aprovado: aprovadoAcima });
-  }
+  // A ordem importa: a retirada acima do limite aprova o limite inteiro e
+  // zera o que sobra. Se ela viesse primeiro, a retirada válida nunca teria
+  // saldo e o assert de baixa exata do lucro ficaria sem rodar (foi o que
+  // aconteceu na primeira execução verde, 05/10).
 
-  // 2) Dentro do limite → aprova integral e baixa o lucro disponível
-  var restante = _e2eNum_(SociosService.calcularRetiradaMaxima(alvo.idSocio),
-    'calcularRetiradaMaxima pós-parcial', 'retiradas');
+  // 1) Dentro do limite → aprova integral e baixa o lucro disponível
   var resultadoValida = null;
+  var pedido = 0;
 
-  if (restante > 0.02) {
-    var pedido = Utils.arredondar(restante / 2, 2);
+  if (limite > 0.02) {
+    pedido = Utils.arredondar(limite / 2, 2);
     var valida = SociosService.solicitarRetirada({
       idSocio: alvo.idSocio,
       valorSolicitado: pedido,
@@ -580,7 +565,7 @@ function e2eRetiradas() {
     });
     if (valida.status !== 'Aprovada') {
       _e2eFalhar_('retiradas', 'retirada dentro do limite deveria ser aprovada integralmente',
-        { pedido: pedido, limite: restante, status: valida.status, aprovado: valida.valorAprovado });
+        { pedido: pedido, limite: limite, status: valida.status, aprovado: valida.valorAprovado });
     }
     if (Math.abs(_e2eNum_(valida.valorAprovado, 'retiradaValida.valorAprovado', 'retiradas') - pedido) > 0.01) {
       _e2eFalhar_('retiradas', 'valor aprovado diferente do solicitado numa retirada dentro do limite',
@@ -589,20 +574,41 @@ function e2eRetiradas() {
 
     // O lucro disponível tem que ter caído exatamente o valor aprovado
     var depois = SociosService.listarSocios(true).filter(function(s) { return s.idSocio === alvo.idSocio; })[0];
-    var esperadoDisponivel = Utils.arredondar(alvo.lucroDisponivel - aprovadoAcima - pedido, 2);
+    var esperadoDisponivel = Utils.arredondar(alvo.lucroDisponivel - pedido, 2);
     if (Math.abs(depois.lucroDisponivel - esperadoDisponivel) > 0.02) {
       _e2eFalhar_('retiradas', 'lucro disponível não baixou o valor retirado',
-        { antes: alvo.lucroDisponivel, retirado: aprovadoAcima + pedido,
+        { antes: alvo.lucroDisponivel, retirado: pedido,
           esperado: esperadoDisponivel, encontrado: depois.lucroDisponivel });
     }
     resultadoValida = { pedido: pedido, aprovado: valida.valorAprovado, status: valida.status };
   }
 
+  // 2) Acima do limite → não pode aprovar mais que o limite que restou
+  var restante = _e2eNum_(SociosService.calcularRetiradaMaxima(alvo.idSocio),
+    'calcularRetiradaMaxima pós-válida', 'retiradas');
+  var excesso = Utils.arredondar(restante * 2 + 100, 2);
+  var acima = SociosService.solicitarRetirada({
+    idSocio: alvo.idSocio,
+    valorSolicitado: excesso,
+    idRequisicao: _e2eIdReq_('RET-ACIMA'),
+    data: _e2eHoje_(),
+    observacao: 'E2E retirada acima do limite'
+  });
+  var aprovadoAcima = _e2eNum_(acima.valorAprovado, 'retiradaAcima.valorAprovado', 'retiradas');
+  if (aprovadoAcima > restante + 0.01) {
+    _e2eFalhar_('retiradas', 'retirada aprovou acima do limite calculado',
+      { solicitado: excesso, limite: restante, aprovado: aprovadoAcima });
+  }
+  if (acima.status === 'Aprovada') {
+    _e2eFalhar_('retiradas', 'retirada acima do limite não podia sair como "Aprovada" integral',
+      { status: acima.status, solicitado: excesso, aprovado: aprovadoAcima });
+  }
+
   return {
     socio: alvo.nome,
     limiteInicial: limite,
-    retiradaAcimaDoLimite: { solicitado: excesso, aprovado: aprovadoAcima, status: acima.status },
-    retiradaValida: resultadoValida
+    retiradaValida: resultadoValida,
+    retiradaAcimaDoLimite: { limiteRestante: restante, solicitado: excesso, aprovado: aprovadoAcima, status: acima.status }
   };
 }
 
