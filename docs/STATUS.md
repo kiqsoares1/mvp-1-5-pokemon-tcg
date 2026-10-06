@@ -6,6 +6,38 @@ Atualizar a cada sessão relevante — o que mudou, o que ficou pendente. Manter
 detalhe de regra de negócio ver `REGRAS_DE_NEGOCIO.md`, para arquitetura ver
 `ARQUITETURA.md`.
 
+## 2026-10-05 (sessão 9 — HML atualizada e primeiro E2E verde)
+
+**Publicação:** branch `feat/cancelamento-venda` enviado ao GitHub. `clasp push` respondeu
+"already up to date" — conferido com `clasp pull` numa pasta temporária: os 33 arquivos da
+HML são idênticos aos locais, cancelamento incluído (já tinha sido publicado antes).
+
+**"Criar Estrutura Base"** rodado pelo menu, sem erros. Adicionou exatamente as colunas da
+sessão 8: `Compras` e `Vendas` (Observação, ID Requisição), `Movimentos_Estoque` (Subtipo
+Movimento, Status Destino, Custo Unitário Movimento, Observação), `Pokemon_Abertura_Box`
+(Observação).
+
+**`testarFluxoCompletoE2E()` — primeira execução completa, `sucesso: true`** (05/10, 23:51,
+107 s; rodado pelo Kaique no editor). Todos os passos passaram, incluindo venda, retirada e o
+novo passo de cancelamento (saldo do lote voltou de 2 para 2, soma do lucro após estorno 0,
+6 linhas de lucro = 3 originais + 3 espelhos, as quatro recusas confirmadas). Fecha a maior
+lacuna das sessões 6–8. Dois sub-casos **não exercitados** nesta rodada:
+- `compraProdutoInativo` pulado — não há produto inativo cadastrado na HML.
+- `retiradaValida: null` — a retirada acima do limite consumiu o limite inteiro (68), não
+  sobrou saldo para o caso "dentro do limite aprova integral". Esperado pelo código, mas a
+  regra de baixa exata do lucro disponível ficou sem assert nesta rodada.
+
+Antes disso, por erro de automação (o editor demorou a trocar a função selecionada), rodou
+`e2ePrepararProdutos` sozinho uma vez — só reaproveita/cadastra produtos E2E, sem efeito
+além do que o fluxo completo faria. Lição: no editor do Apps Script, conferir a função
+selecionada pela página Execuções, não pelo rótulo do dropdown.
+
+**Pendente:**
+- QA manual da tela de cancelamento (seção 5b do `PLANO_DE_TESTES.md`).
+- Abrir PR de `feat/cancelamento-venda` para o `main`.
+- Demais pendências da sessão 8 (proteções de abas, cancelamento de compra, inativação de
+  produto, produção) seguem de pé.
+
 ## 2026-09-12 (sessão 8 — cancelamento de venda)
 
 **Nada enviado ao Apps Script.** Tudo local, aguardando gate de `clasp push`.
